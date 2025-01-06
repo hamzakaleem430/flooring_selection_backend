@@ -25,13 +25,13 @@ export const createChat = async (req, res) => {
       })
       .populate(
         "users",
-        "-password -addressDetails -bankDetails -role -passwordResetToken -passwordResetTokenExpire"
+        "-password -reviews -role -passwordResetToken -passwordResetTokenExpire"
       )
       .populate("latestMessage");
 
     isChat = await userModel.populate(isChat, {
       path: "latestMessage.sender",
-      select: "name email number avatar isOnline status",
+      select: "name email profileImage isOnline status",
     });
 
     if (isChat.length > 0) {
@@ -48,7 +48,7 @@ export const createChat = async (req, res) => {
         .findById({ _id: createdChat._id })
         .populate(
           "users",
-          "-password -addressDetails -bankDetails -role -passwordResetToken -passwordResetTokenExpire"
+          "-password -reviews -role -passwordResetToken -passwordResetTokenExpire"
         );
 
       res.status(200).send({
@@ -82,7 +82,7 @@ export const fetchChats = async (req, res) => {
       .find({ users: { $elemMatch: { $eq: userId } } })
       .populate(
         "users",
-        "-password -addressDetails -bankDetails -role -passwordResetToken -passwordResetTokenExpire"
+        "-password -reviews -role -passwordResetToken -passwordResetTokenExpire"
       )
       .populate("latestMessage")
       .sort({ updatedAt: -1 })
@@ -90,7 +90,7 @@ export const fetchChats = async (req, res) => {
         results = await userModel.populate(results, {
           path: "latestMessage.sender",
           select:
-            "-password -addressDetails -bankDetails -role -passwordResetToken -passwordResetTokenExpire",
+            "-password -reviews -role -passwordResetToken -passwordResetTokenExpire",
         });
         res.status(200).send({
           results: results,

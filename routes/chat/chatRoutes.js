@@ -1,10 +1,10 @@
 import express from "express";
-import { isAuthenticated } from "../../middlewares/authMiddleware.js";
 import {
   createChat,
   deleteChat,
   fetchChats,
 } from "../../controllers/chat/chatController.js";
+import { isAuthenticated } from "../../middleware/authMiddleware.js";
 
 const router = express.Router();
 

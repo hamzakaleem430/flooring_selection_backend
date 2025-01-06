@@ -9,6 +9,8 @@ import db from "./utils/db.js";
 import { initialSocketServer } from "./socketServer.js";
 import userRoutes from "./routes/userRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js";
+import chatRoutes from "./routes/chat/chatRoutes.js";
+import messagesRoutes from "./routes/chat/messageRoutes.js";
 
 // Config Dotenv
 dotenv.config();
@@ -30,6 +32,8 @@ initialSocketServer(server);
 // Rest API's
 app.use("/api/v1/auth", userRoutes);
 app.use("/api/v1/project", projectRoutes);
+app.use("/api/v1/chat", chatRoutes);
+app.use("/api/v1/messages", messagesRoutes);
 
 // Server
 app.use("/", (req, res) => {
