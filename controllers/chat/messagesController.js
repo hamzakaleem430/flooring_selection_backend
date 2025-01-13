@@ -28,11 +28,25 @@ export const sendMessage = async (req, res) => {
       select: "name email avatar isOnline",
     });
 
-    await chatModel.findByIdAndUpdate(
-      { _id: chatId },
-      { latestMessage: message.toObject() },
-      { new: true }
-    );
+    // await chatModel.findByIdAndUpdate(
+    //   { _id: chatId },
+    //   { latestMessage: message.toObject() },
+    //   { new: true }
+    // );
+
+    // Increment unread count for all users except the sender
+    const chat = await chatModel.findById(chatId);
+    chat.users.forEach((userId) => {
+      if (userId.toString() !== req.user._id.toString()) {
+        chat.unreadMessageCount.set(
+          userId.toString(),
+          (chat.unreadMessageCount.get(userId.toString()) || 0) + 1
+        );
+      }
+    });
+
+    chat.latestMessage = message.toObject();
+    await chat.save();
 
     res.status(200).json({
       success: true,
@@ -52,10 +66,18 @@ export const sendMessage = async (req, res) => {
 // Get All Messages
 export const getChatMessages = async (req, res) => {
   try {
+    const chatId = req.params.id;
+    const userId = req.params.userId;
     const messages = await messagesModel
       .find({ chat: req.params.id })
       .populate("sender", "name email avatar isOnline")
       .populate("chat");
+
+    const chat = await chatModel.findById(chatId);
+    if (chat) {
+      chat.unreadMessageCount.set(userId.toString(), 0);
+      await chat.save();
+    }
 
     res.status(200).json({
       success: true,

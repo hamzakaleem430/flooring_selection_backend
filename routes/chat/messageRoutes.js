@@ -10,6 +10,6 @@ const router = express.Router();
 // Send Message
 router.post("/send", isAuthenticated, sendMessage);
 // Fetch Message
-router.get("/all/:id", getChatMessages);
+router.get("/all/:id/:userId", getChatMessages);
 
 export default router;

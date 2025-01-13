@@ -19,12 +19,12 @@ export const register = async (req, res) => {
     const file = req.files;
     const profileImage = file && file[0].location;
 
-    if (!profileImage) {
-      return res.status(400).send({
-        success: false,
-        message: "Profile image is required!",
-      });
-    }
+    // if (!profileImage) {
+    //   return res.status(400).send({
+    //     success: false,
+    //     message: "Profile image is required!",
+    //   });
+    // }
 
     if (!name) {
       return res.status(400).send({
@@ -222,6 +222,7 @@ export const loginUser = async (req, res) => {
       password: userPassword,
       passwordResetToken,
       passwordResetTokenExpire,
+      reviews,
       ...userData
     } = user._doc;
 
@@ -267,6 +268,7 @@ export const socialAuth = async (req, res) => {
       password,
       passwordResetToken,
       passwordResetTokenExpire,
+      reviews,
       ...userData
     } = user._doc;
 
@@ -375,7 +377,9 @@ export const getUserDetail = async (req, res) => {
     const userId = req.params.id;
     const user = await userModel
       .findById(userId)
-      .select("-password -passwordResetToken -passwordResetTokenExpire");
+      .select(
+        "-password -passwordResetToken -reviews -passwordResetTokenExpire"
+      );
 
     res.status(200).send({
       success: true,

@@ -11,6 +11,7 @@ import userRoutes from "./routes/userRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js";
 import chatRoutes from "./routes/chat/chatRoutes.js";
 import messagesRoutes from "./routes/chat/messageRoutes.js";
+import notificationRoutes from "./routes/notificationRoute.js";
 
 // Config Dotenv
 dotenv.config();
@@ -34,6 +35,7 @@ app.use("/api/v1/auth", userRoutes);
 app.use("/api/v1/project", projectRoutes);
 app.use("/api/v1/chat", chatRoutes);
 app.use("/api/v1/messages", messagesRoutes);
+app.use("/api/v1/notification", notificationRoutes);
 
 // Server
 app.use("/", (req, res) => {

@@ -45,7 +45,6 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
     },
     category: {
       type: String,
@@ -76,6 +75,10 @@ const userSchema = new mongoose.Schema(
     isOnline: {
       type: Boolean,
       default: false,
+    },
+    projects: {
+      type: Number,
+      default: 0,
     },
     role: {
       type: String,
