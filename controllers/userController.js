@@ -853,3 +853,30 @@ export const getReviews = async (req, res) => {
     });
   }
 };
+
+// Upload Files
+export const uploadFiles = async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No files were uploaded.",
+      });
+    }
+
+    const fileUrls = req.files.map((file) => file.location);
+
+    res.status(200).json({
+      success: true,
+      message: "Files uploaded successfully.",
+      files: fileUrls,
+    });
+  } catch (error) {
+    console.error("Error uploading files:", error);
+    res.status(500).json({
+      success: false,
+      message: "An error occurred while uploading files.",
+      error: error.message,
+    });
+  }
+};

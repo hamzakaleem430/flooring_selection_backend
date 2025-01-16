@@ -15,6 +15,7 @@ import {
   updateAccessToken,
   updatePassword,
   updateUserProfile,
+  uploadFiles,
   verificationUser,
 } from "../controllers/userController.js";
 import uploadMiddleware from "../middleware/uploadFiles.js";
@@ -74,5 +75,8 @@ router.post("/addReply/:id", isAuthenticated, addReviewReply);
 
 // Get Reviews
 router.get("/getReviews/:id", isAuthenticated, getReviews);
+
+// Upload Files
+router.post("/upload/file", isAuthenticated, uploadMiddleware, uploadFiles);
 
 export default router;

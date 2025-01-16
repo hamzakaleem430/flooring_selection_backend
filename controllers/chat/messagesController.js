@@ -21,11 +21,14 @@ export const sendMessage = async (req, res) => {
 
     var message = await messagesModel.create({ ...newMessage });
 
-    message = await message.populate("sender", "name email avatar isOnline");
+    message = await message.populate(
+      "sender",
+      "name email profileImage isOnline"
+    );
     message = await message.populate("chat");
     message = await userModel.populate(message, {
       path: "chat.users",
-      select: "name email avatar isOnline",
+      select: "name email profileImage isOnline",
     });
 
     // await chatModel.findByIdAndUpdate(
@@ -70,7 +73,7 @@ export const getChatMessages = async (req, res) => {
     const userId = req.params.userId;
     const messages = await messagesModel
       .find({ chat: req.params.id })
-      .populate("sender", "name email avatar isOnline")
+      .populate("sender", "name email profileImage isOnline")
       .populate("chat");
 
     const chat = await chatModel.findById(chatId);
