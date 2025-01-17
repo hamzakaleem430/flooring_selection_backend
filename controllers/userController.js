@@ -16,8 +16,8 @@ export const register = async (req, res) => {
   try {
     const { name, email, password, category } = req.body;
 
-    const file = req.files;
-    const profileImage = file && file[0].location;
+    const file = req.files || [];
+    const profileImage = file[0]?.location || null;
 
     // if (!profileImage) {
     //   return res.status(400).send({

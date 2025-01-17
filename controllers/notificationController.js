@@ -68,10 +68,10 @@ export const createNotification = async (req, res) => {
 export const getAllNotifications = async (req, res) => {
   try {
     const notifications = await notificationModel
-      .find({
-        status: "unread",
-      })
-      .populate("user", "name email");
+      .find()
+      .populate("user", "name email profileImage");
+
+    // { type: "admin" }
 
     res.status(200).send({
       success: true,
@@ -96,7 +96,7 @@ export const getAllHeaderNotifications = async (req, res) => {
         status: "unread",
         type: "admin",
       })
-      .populate("user", "name email");
+      .populate("user", "name email profileImage");
 
     res.status(200).send({
       success: true,
@@ -124,7 +124,7 @@ export const getUserNotifications = async (req, res) => {
         status: "unread",
         type: { $ne: "admin" },
       })
-      .populate("user", "name email");
+      .populate("user", "name email profileImage");
 
     res.status(200).send({
       success: true,
@@ -148,7 +148,7 @@ export const getNotificationDetail = async (req, res) => {
 
     const notification = await notificationModel
       .findById(notificationId)
-      .populate("user", "name email");
+      .populate("user", "name email profileImage");
 
     if (!notification) {
       return res.status(404).send({

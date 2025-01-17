@@ -1,0 +1,95 @@
+import { Server as SocketIOServer } from "socket.io";
+import userModel from "./models/userModel.js";
+
+export const initialSocketServer = async (server) => {
+    const io = new SocketIOServer(server, {
+        cors: {
+            origin: "*", // Ensure you specify the correct frontend URL in production
+            methods: ["GET", "POST"]
+        }
+    });
+
+    io.on("connection", async (socket) => {
+        console.log("Connected: User is online!");
+
+        const { userID } = socket.handshake.query;
+
+        if (!userID) {
+            console.warn("UserID is missing in the connection handshake.");
+            socket.disconnect(); // Prevent connecting without a user ID
+            return;
+        }
+
+        console.log("User ID:", userID);
+
+        let user;
+
+        // Set the user's status to online
+        try {
+            user = await userModel.findByIdAndUpdate(
+                userID,
+                { isOnline: true },
+                { new: true }
+            );
+
+            if (!user) {
+                console.warn(`User with ID ${userID} not found in the database.`);
+            } else {
+                console.log(`User ${user.name} is now online.`);
+
+                // Emit event for all users to update their chat lists
+                io.emit("newUserData", { userID, isOnline: true });
+            }
+        } catch (error) {
+            console.error("Error updating user's online status:", error);
+        }
+
+        // Join Chat Room
+        socket.on("join chat", (room) => {
+            if (!room) {
+                console.error("Room is not provided!");
+                return;
+            }
+            socket.join(room);
+            console.log(`User with ID ${userID} joined room: ${room}`);
+        });
+
+        // Listen for new messages
+        socket.on("NewMessageAdded", (data) => {
+            console.log("New Message Added: ", data);
+            io.to(data.room).emit("fetchMessages", data); // Broadcasting to the specific room
+        });
+
+        // Typing Indicators
+        socket.on("typing", (room) => {
+            console.log(`User ${userID} started typing in room: ${room}`);
+            socket.to(room).emit("typing", { userID });
+        });
+
+        socket.on("stopTyping", (room) => {
+            console.log(`User ${userID} stopped typing in room: ${room}`);
+            socket.to(room).emit("stopTyping", { userID });
+        });
+
+        // Handle User Disconnect
+        socket.on("disconnect", async () => {
+            console.log(`User with ID: ${userID} disconnected.`);
+
+            try {
+                if (user) {
+                    await userModel.findByIdAndUpdate(
+                        userID,
+                        { isOnline: false },
+                        { new: true }
+                    );
+                    console.log(`User ${user.name} is now offline.`);
+                    io.emit("newUserData", { userID, isOnline: false });
+                } else {
+                    console.warn(`User with ID ${userID} was not found while disconnecting.`);
+                }
+            } catch (error) {
+                console.error("Error updating user's offline status:", error);
+            }
+        });
+    });
+};
