@@ -35,8 +35,10 @@ export const initialSocketServer = async (server) => {
       } else {
         console.log(`User ${user.name} is now online.`);
 
-        // Emit event for all users to update their chat lists
-        io.emit("newUserData", { userID, isOnline: true });
+        socket.on("UserOnline", (data) => {
+          console.log("New Message Added: ", data);
+          io.emit("newUserData", { userID, isOnline: true });
+        });
       }
     } catch (error) {
       console.error("Error updating user's online status:", error);

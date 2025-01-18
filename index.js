@@ -12,17 +12,19 @@ import projectRoutes from "./routes/projectRoutes.js";
 import chatRoutes from "./routes/chat/chatRoutes.js";
 import messagesRoutes from "./routes/chat/messageRoutes.js";
 import notificationRoutes from "./routes/notificationRoute.js";
+import productRoutes from "./routes/productRoutes.js";
 
 // Config Dotenv
 dotenv.config();
 
 // Database Connection
 db();
-// Middleware
+
+// Middlewares
 const app = express();
+
 app.use(express.json());
 app.use(cors());
-// app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(morgan("dev"));
 
@@ -36,6 +38,7 @@ app.use("/api/v1/project", projectRoutes);
 app.use("/api/v1/chat", chatRoutes);
 app.use("/api/v1/messages", messagesRoutes);
 app.use("/api/v1/notification", notificationRoutes);
+app.use("/api/v1/product", productRoutes);
 
 // Server
 app.use("/", (req, res) => {
@@ -45,6 +48,6 @@ app.use("/", (req, res) => {
 // Listening
 const PORT = process.env.PORT || 8080;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`.bgGreen.white);
 });
