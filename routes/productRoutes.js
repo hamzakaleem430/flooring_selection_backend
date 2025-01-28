@@ -1,5 +1,5 @@
 import express from "express";
-import { isAuthenticated } from "../middleware/authMiddleware.js";
+import { isAdmin, isAuthenticated } from "../middleware/authMiddleware.js";
 import uploadMiddleware from "../middleware/uploadFiles.js";
 import {
   createProduct,
@@ -29,5 +29,11 @@ router.get("/productDetail/:id", getProductDetail);
 
 // Delete Product
 router.delete("/delete/:id", isAuthenticated, deleteProduct);
+
+// Delete All Products
+router.delete("/deleteAllUsers", isAuthenticated, isAdmin);
+
+// Get Complete Coordinates
+// router.get("/getCompleteCoordinates", getCompleteCoordinates);
 
 export default router;

@@ -1,13 +1,16 @@
 import express from "express";
 import {
+  connectUserToProject,
   createProject,
+  deleteAllProjects,
   deleteProject,
+  disconnectUserFromProject,
   getAllAdminProjects,
   getAllUserProjects,
   getProjectDetail,
   updateProject,
 } from "../controllers/projectController.js";
-import { isAuthenticated } from "../middleware/authMiddleware.js";
+import { isAdmin, isAuthenticated } from "../middleware/authMiddleware.js";
 import uploadMiddleware from "../middleware/uploadFiles.js";
 
 const router = express.Router();
@@ -29,5 +32,14 @@ router.get("/admin", getAllAdminProjects);
 
 // Delete Project
 router.delete("/delete/:id", isAuthenticated, deleteProject);
+
+// Delete All Projects
+router.put("/deleteAll/projects", isAuthenticated, isAdmin, deleteAllProjects);
+
+// Connect User to Project
+router.put("/connect/:id", isAuthenticated, connectUserToProject);
+
+// Disconnect User from Project
+router.put("/disconnect/:id", isAuthenticated, disconnectUserFromProject);
 
 export default router;

@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { s3 } from "../middleware/uploadFiles.js";
 import userModel from "../models/userModel.js";
+import mongoose from "mongoose";
 dotenv.config();
 
 // Create Project
@@ -93,6 +94,7 @@ export const updateProject = async (req, res) => {
       variance_budget,
       quality,
       total_area,
+      status,
       sum_area,
       deletedImages,
     } = req.body;
@@ -123,7 +125,7 @@ export const updateProject = async (req, res) => {
       });
     }
 
-    if (project.user.toString() !== userId) {
+    if (project.user.toString() !== userId && req.user.role !== "admin") {
       return res.status(400).json({
         success: false,
         message: "You are not authorized to update this project.",
@@ -181,6 +183,7 @@ export const updateProject = async (req, res) => {
         total_area: total_area || project.total_area,
         sum_area: sum_area || project.sum_area,
         thumbnails: updatedThumbnails,
+        status: status || project.status,
       },
       { new: true }
     );
@@ -286,10 +289,8 @@ export const deleteProject = async (req, res) => {
       });
     }
 
-    const user = await userModel.findById(userId);
-
-    if (project.user.toString() !== req.user.id || user.role !== "admin") {
-      return res.status(400).json({
+    if (project.user.toString() !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({
         success: false,
         message: "You are not authorized to delete this project.",
       });
@@ -315,21 +316,35 @@ export const deleteProject = async (req, res) => {
 export const connectUserToProject = async (req, res) => {
   try {
     const projectId = req.params.id;
-    const userId = req.user.id;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required.",
+      });
+    }
 
     const project = await projectModel.findById(projectId);
 
     if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found.",
+      });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({
         success: false,
-        message: "Project not found!",
+        message: "Invalid User ID.",
       });
     }
 
     if (project.connect_users.includes(userId)) {
       return res.status(400).json({
         success: false,
-        message: "You are already connected to this project.",
+        message: "User is already connected to this project.",
       });
     }
 
@@ -338,13 +353,13 @@ export const connectUserToProject = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Connected to project successfully!",
+      message: "User connected to project successfully.",
     });
   } catch (error) {
-    console.log(error);
+    console.error("Error connecting user to project:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to connect to project. Please try again.",
+      message: "Failed to connect user to project. Please try again.",
       error: error.message,
     });
   }
@@ -354,12 +369,22 @@ export const connectUserToProject = async (req, res) => {
 export const disconnectUserFromProject = async (req, res) => {
   try {
     const projectId = req.params.id;
-    const userId = req.user.id;
+    const { userId } = req.body;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(projectId) ||
+      !mongoose.Types.ObjectId.isValid(userId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project or user ID.",
+      });
+    }
 
     const project = await projectModel.findById(projectId);
 
     if (!project) {
-      return res.status(400).json({
+      return res.status(404).json({
         success: false,
         message: "Project not found!",
       });
@@ -372,7 +397,9 @@ export const disconnectUserFromProject = async (req, res) => {
       });
     }
 
-    project.connect_users = project.connect_users.filter((id) => id !== userId);
+    project.connect_users = project.connect_users.filter(
+      (id) => id.toString() !== userId
+    );
     await project.save();
 
     res.status(200).json({
@@ -380,10 +407,40 @@ export const disconnectUserFromProject = async (req, res) => {
       message: "Disconnected from project successfully!",
     });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(500).json({
       success: false,
       message: "Failed to disconnect from project. Please try again.",
+      error: error.message,
+    });
+  }
+};
+
+// Delete All Projects
+export const deleteAllProjects = async (req, res) => {
+  try {
+    const { projectIds } = req.body;
+
+    if (!Array.isArray(projectIds) || projectIds.length === 0) {
+      return res.status(400).send({
+        success: false,
+        message: "No valid user IDs provided.",
+      });
+    }
+
+    await projectModel.deleteMany({
+      _id: { $in: projectIds },
+    });
+
+    res.status(200).send({
+      success: true,
+      message: "All projects deleted successfully!",
+    });
+  } catch (error) {
+    console.error("Error deleting users:", error);
+    res.status(500).send({
+      success: false,
+      message: "Error occurred while users notifications. Please try again!",
       error: error.message,
     });
   }

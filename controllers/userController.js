@@ -245,12 +245,17 @@ export const loginUser = async (req, res) => {
 // Social Login
 export const socialAuth = async (req, res) => {
   try {
-    const { name, email, profileImage } = req.body;
+    const { name, email, profileImage, category } = req.body;
 
     let user = await userModel.findOne({ email });
 
     if (!user) {
-      const newUser = await userModel.create({ name, email, profileImage });
+      const newUser = await userModel.create({
+        name,
+        email,
+        profileImage,
+        category,
+      });
       user = newUser;
     }
 
@@ -427,18 +432,20 @@ export const updateUserProfile = async (req, res) => {
 
     // Update From S3 Bucket
     if (profileImage && profileImage !== user?.profileImage) {
-      const oldMediaKey = user?.profileImage.split("/").pop();
+      if (user.profileImage) {
+        const oldMediaKey = user.profileImage.split("/").pop();
 
-      const deleteParams = {
-        Bucket: process.env.AWS_S3_BUCKET_NAME,
-        Key: oldMediaKey,
-      };
+        const deleteParams = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: oldMediaKey,
+        };
 
-      try {
-        await s3.send(new DeleteObjectCommand(deleteParams));
-        console.log("Old media deleted from S3 successfully");
-      } catch (error) {
-        console.error("Error deleting old media from S3:", error);
+        try {
+          await s3.send(new DeleteObjectCommand(deleteParams));
+          console.log("Old media deleted from S3 successfully");
+        } catch (error) {
+          console.error("Error deleting old media from S3:", error);
+        }
       }
     }
 

@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 dotenv.config();
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { s3 } from "../middleware/uploadFiles.js";
+// import axios from "axios";
+// import decodePolyline from "decode-google-map-polyline";
 
 // Create Product
 export const createProduct = async (req, res) => {
@@ -328,3 +330,51 @@ export const deleteProduct = async (req, res) => {
     });
   }
 };
+
+// Complete Coordinates
+// export const getCompleteCoordinates = async (req, res) => {
+//   try {
+//     const { origin, destination, waypoints, key } = req.query;
+
+//     const response = await axios.get(
+//       `https://maps.googleapis.com/maps/api/directions/json`,
+//       {
+//         params: {
+//           origin,
+//           destination,
+//           waypoints,
+//           key,
+//         },
+//       }
+//     );
+
+//     if (response.data.status !== "OK") {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Failed to fetch directions.",
+//         error: response.data.status,
+//       });
+//     }
+
+//     const routes = response.data.routes;
+
+//     // Extract all coordinates from the polyline in the routes
+//     const allCoordinates = routes.flatMap((route) => {
+//       const polyline = route.overview_polyline?.points;
+//       return polyline ? decodePolyline(polyline) : [];
+//     });
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Coordinates retrieved successfully.",
+//       data: allCoordinates,
+//     });
+//   } catch (error) {
+//     console.log(error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Error retrieving coordinates, please try again later.",
+//       error: error.message,
+//     });
+//   }
+// };

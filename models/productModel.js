@@ -43,7 +43,6 @@ const productSchema = new mongoose.Schema(
     ],
     qr_code: {
       type: String,
-      //   required: [true, "QR code is required"],
       unique: true,
       trim: true,
     },
