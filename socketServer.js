@@ -2,23 +2,14 @@ import { Server as SocketIOServer } from "socket.io";
 import userModel from "./models/userModel.js";
 
 export const initialSocketServer = async (server) => {
-  const io = new SocketIOServer(server, {
-    cors: {
-      origin: "*",
-      methods: ["GET", "POST"],
-    },
-  });
+  const io = new SocketIOServer(server);
 
   io.on("connection", async (socket) => {
     console.log("Connected: User is online!");
 
     const { userID } = socket.handshake.query;
 
-    if (!userID) {
-      console.warn("UserID is missing in the connection handshake.");
-      socket.disconnect();
-      return;
-    }
+    console.log("User ID:", userID);
 
     let user;
 
@@ -35,10 +26,8 @@ export const initialSocketServer = async (server) => {
       } else {
         console.log(`User ${user.name} is now online.`);
 
-        socket.on("UserOnline", (data) => {
-          console.log("New Message Added: ", data);
-          io.emit("newUserData", { userID, isOnline: true });
-        });
+        // Emit event for all users to update their chat lists
+        io.emit("newUserData", { userID, isOnline: true });
       }
     } catch (error) {
       console.error("Error updating user's online status:", error);
@@ -87,6 +76,7 @@ export const initialSocketServer = async (server) => {
             `User ${user.firstName} ${user.lastName} is now offline.`
           );
 
+          // Emit event for all users to update their chat lists
           io.emit("newUserData", { userID, isOnline: false });
         } else {
           console.warn(`User ${userID} was not found when disconnecting.`);
@@ -95,5 +85,7 @@ export const initialSocketServer = async (server) => {
         console.error("Error updating user's offline status:", error);
       }
     });
+
+    // ---------End--------
   });
 };
