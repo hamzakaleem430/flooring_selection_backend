@@ -5,6 +5,7 @@ import {
   addUser,
   deleteAllUsers,
   deleteUser,
+  getAllProjectrequests,
   getAllUsers,
   getReviews,
   getUserDetail,
@@ -78,5 +79,8 @@ router.get("/getReviews/:id", isAuthenticated, getReviews);
 
 // Upload Files
 router.post("/upload/file", isAuthenticated, uploadMiddleware, uploadFiles);
+
+// Get All Project Requests
+router.get("/getAllProjects/:id", getAllProjectrequests);
 
 export default router;

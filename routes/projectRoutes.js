@@ -1,5 +1,7 @@
 import express from "express";
 import {
+  acceptFollowRequest,
+  cancelFollowRequest,
   connectUserToProject,
   createProject,
   deleteAllProjects,
@@ -8,6 +10,7 @@ import {
   getAllAdminProjects,
   getAllUserProjects,
   getProjectDetail,
+  sendRequestToUser,
   updateProject,
 } from "../controllers/projectController.js";
 import { isAdmin, isAuthenticated } from "../middleware/authMiddleware.js";
@@ -35,6 +38,15 @@ router.delete("/delete/:id", isAuthenticated, deleteProject);
 
 // Delete All Projects
 router.put("/deleteAll/projects", isAuthenticated, isAdmin, deleteAllProjects);
+
+// Send Request to User
+router.put("/sendRequest/:id", isAuthenticated, sendRequestToUser);
+
+// Accept Follow request
+router.put("/accept", isAuthenticated, acceptFollowRequest);
+
+// Reject Request
+router.put("/reject", isAuthenticated, cancelFollowRequest);
 
 // Connect User to Project
 router.put("/connect/:id", isAuthenticated, connectUserToProject);

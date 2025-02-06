@@ -4,6 +4,7 @@ import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { s3 } from "../middleware/uploadFiles.js";
 import userModel from "../models/userModel.js";
 import mongoose from "mongoose";
+import notificationModel from "../models/notificationModel.js";
 dotenv.config();
 
 // Create Project
@@ -307,6 +308,191 @@ export const deleteProject = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to delete project. Please try again.",
+      error: error.message,
+    });
+  }
+};
+
+// Send Request to User
+export const sendRequestToUser = async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required.",
+      });
+    }
+
+    const project = await projectModel.findById(projectId);
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found.",
+      });
+    }
+    const user = await userModel.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    if (project.connect_users.includes(user._id)) {
+      return res.status(400).json({
+        success: false,
+        message: "User is already connected to project.",
+      });
+    }
+
+    if (user.followRequests.some((req) => req.equals(project._id))) {
+      return res.status(400).json({
+        success: false,
+        message: "Follow request already sent to this user.",
+      });
+    }
+
+    user.followRequests.push(project._id);
+    await user.save();
+
+    // Create a notification
+    await notificationModel.create({
+      user: user._id,
+      subject: "New Follow Request",
+      context: `You have received a follow request for the project "${project.name}".`,
+      type: "follow_request",
+      redirectLink: `/projects/${projectId}`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Follow request sent successfully.",
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to send request to user. Please try again.",
+      error: error.message,
+    });
+  }
+};
+
+// Accept Follow Request
+export const acceptFollowRequest = async (req, res) => {
+  try {
+    const { userId, projectId } = req.body;
+
+    if (!userId || !projectId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID and Project ID are required.",
+      });
+    }
+
+    const user = await userModel.findById(userId);
+    const project = await projectModel.findById(projectId);
+
+    if (!user || !project) {
+      return res.status(404).json({
+        success: false,
+        message: "User or project not found.",
+      });
+    }
+
+    // Check if the follow request exists
+    if (!user.followRequests.includes(projectId)) {
+      return res.status(400).json({
+        success: false,
+        message: "No follow request found.",
+      });
+    }
+
+    // Remove from followRequests
+    user.followRequests = user.followRequests.filter(
+      (req) => req.toString() !== projectId
+    );
+
+    // Add user to project's connected users
+    project.connect_users.push(user._id);
+
+    await user.save();
+    await project.save();
+
+    // Create a notification
+    await notificationModel.create({
+      user: user._id,
+      subject: "Follow Request Accepted",
+      context: `Your follow request for the project "${project.name}" has been accepted.`,
+      type: "follow_request",
+      redirectLink: `/projects/${projectId}`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Follow request accepted successfully.",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to accept follow request. Please try again.",
+      error: error.message,
+    });
+  }
+};
+
+// Cancel Follow request
+export const cancelFollowRequest = async (req, res) => {
+  try {
+    const { userId, projectId } = req.body;
+
+    if (!userId || !projectId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID and Project ID are required.",
+      });
+    }
+
+    const user = await userModel.findById(userId);
+    const project = await projectModel.findById(projectId);
+
+    if (!user || !project) {
+      return res.status(404).json({
+        success: false,
+        message: "User or project not found.",
+      });
+    }
+
+    // Check if the follow request exists
+    if (!user.followRequests.includes(projectId)) {
+      return res.status(400).json({
+        success: false,
+        message: "No follow request found to cancel.",
+      });
+    }
+
+    // Remove from followRequests
+    user.followRequests = user.followRequests.filter(
+      (req) => req.toString() !== projectId
+    );
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Follow request canceled successfully.",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to cancel follow request. Please try again.",
       error: error.message,
     });
   }

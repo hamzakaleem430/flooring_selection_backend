@@ -887,3 +887,27 @@ export const uploadFiles = async (req, res) => {
     });
   }
 };
+
+// All User Project Requests
+export const getAllProjectrequests = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await userModel
+      .findById(userId)
+      .select("name followRequests")
+      .populate("followRequests", "name category");
+
+    return res.status(200).send({
+      success: true,
+      message: "All follow request list!",
+      user,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(400).send({
+      success: false,
+      message: "An error occurred while fetching follow request.",
+      error: error.message,
+    });
+  }
+};

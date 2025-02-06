@@ -92,6 +92,12 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    followRequests: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "projects",
+      },
+    ],
   },
   { timestamps: true }
 );
