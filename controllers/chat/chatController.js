@@ -132,3 +132,49 @@ export const deleteChat = async (req, res) => {
     });
   }
 };
+
+// Create Group Chat
+export const createGroupChat = async (req, res) => {
+  try {
+    const { users, chatName, avatar } = req.body;
+    if (!chatName || !users) {
+      return res.status(400).send({
+        success: false,
+        message: "Group name and users are required!",
+      });
+    }
+    if (!avatar) {
+      return res.status(400).send({
+        success: false,
+        message: "Group avatar are required!",
+      });
+    }
+    const userData = JSON.parse(users);
+    if (userData.lenght < 2) {
+      return res.status(400).send({
+        success: false,
+        message: "Please select at least 2 users!",
+      });
+    }
+
+    const isExisting = await chatModel.findOne({
+      chatName: chatName,
+      isGroupChat: true,
+    });
+
+    const groupChat = await chatModel.create({
+      chatName: chatName,
+      users: userData,
+      isGroupChat: true,
+      avatar: avatar,
+    });
+    const fullGroupChat = await chatModel.findById({ _id: groupChat._id });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send({
+      success: false,
+      message: "Error occur while create group chat, please try again!",
+      error: error,
+    });
+  }
+};

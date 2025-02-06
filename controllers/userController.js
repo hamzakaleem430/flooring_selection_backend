@@ -739,7 +739,7 @@ export const addReview = async (req, res) => {
     });
 
     if (user) {
-      user.ratings = avg / product.reviews.length;
+      user.ratings = avg / user.reviews.length;
     }
 
     await user?.save();
