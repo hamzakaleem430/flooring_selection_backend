@@ -5,6 +5,7 @@ import { s3 } from "../middleware/uploadFiles.js";
 import userModel from "../models/userModel.js";
 import mongoose from "mongoose";
 import notificationModel from "../models/notificationModel.js";
+import chatModel from "../models/chat/chatModel.js";
 dotenv.config();
 
 // Create Project
@@ -64,6 +65,16 @@ export const createProject = async (req, res) => {
       sum_area,
       thumbnails,
       connect_users: [userId],
+    });
+
+    // Create Chat
+    await chatModel.create({
+      chatName: name,
+      users: [userId],
+      groupAdmin: userId,
+      isGroupChat: true,
+      avatar: thumbnails[0],
+      projectId: project._id,
     });
 
     res.status(200).send({
@@ -423,6 +434,27 @@ export const acceptFollowRequest = async (req, res) => {
 
     await user.save();
     await project.save();
+
+    // Add User to Grout Chat
+    const chat = await chatModel.findOne({
+      projectId: projectId,
+      isGroupChat: true,
+    });
+
+    console.log("Chat:", chat);
+
+    if (chat) {
+      if (chat.users.includes(userId)) {
+        return res.status(400).json({
+          success: false,
+          message: "User is already in this group chat!",
+        });
+      }
+
+      // Add user to the existing group chat
+      chat.users.push(userId);
+      await chat.save();
+    }
 
     // Create a notification
     await notificationModel.create({

@@ -1,4 +1,5 @@
 import chatModel from "../../models/chat/chatModel.js";
+import projectModel from "../../models/projectModel.js";
 import userModel from "../../models/userModel.js";
 
 // Create Chat
@@ -136,39 +137,60 @@ export const deleteChat = async (req, res) => {
 // Create Group Chat
 export const createGroupChat = async (req, res) => {
   try {
-    const { users, chatName, avatar } = req.body;
-    if (!chatName || !users) {
-      return res.status(400).send({
-        success: false,
-        message: "Group name and users are required!",
-      });
-    }
-    if (!avatar) {
-      return res.status(400).send({
-        success: false,
-        message: "Group avatar are required!",
-      });
-    }
-    const userData = JSON.parse(users);
-    if (userData.lenght < 2) {
-      return res.status(400).send({
-        success: false,
-        message: "Please select at least 2 users!",
+    const { userId, chatName, avatar, projectId } = req.body;
+
+    const isExisting = await chatModel.findOne({
+      projectId: projectId,
+      isGroupChat: true,
+    });
+
+    if (isExisting) {
+      if (isExisting.users.includes(userId)) {
+        return res.status(400).json({
+          success: false,
+          message: "User is already in the group chat!",
+        });
+      }
+
+      // Add user to the existing group chat
+      isExisting.users.push(userId);
+      await isExisting.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "User added to the existing group chat successfully!",
+        isExisting,
       });
     }
 
-    const isExisting = await chatModel.findOne({
-      chatName: chatName,
-      isGroupChat: true,
-    });
+    const project = await projectModel.findById(projectId);
+
+    if (!project) {
+      return res.status(400).json({
+        success: false,
+        message: "Project not found!",
+      });
+    }
 
     const groupChat = await chatModel.create({
       chatName: chatName,
-      users: userData,
+      users: [userId],
+      groupAdmin: project.user,
       isGroupChat: true,
       avatar: avatar,
+      projectId: projectId,
     });
-    const fullGroupChat = await chatModel.findById({ _id: groupChat._id });
+
+    const fullGroupChat = await chatModel
+      .findById({ _id: groupChat._id })
+      .populate("users", "name email profileImage isOnline status")
+      .populate("groupAdmin", "name email profileImage isOnline status");
+
+    res.status(200).send({
+      success: true,
+      message: "Group chat created successfully!",
+      groupChat: fullGroupChat,
+    });
   } catch (error) {
     console.log(error);
     res.status(500).send({
