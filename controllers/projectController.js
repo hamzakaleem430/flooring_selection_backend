@@ -441,8 +441,6 @@ export const acceptFollowRequest = async (req, res) => {
       isGroupChat: true,
     });
 
-    console.log("Chat:", chat);
-
     if (chat) {
       if (chat.users.includes(userId)) {
         return res.status(400).json({

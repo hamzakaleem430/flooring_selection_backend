@@ -83,7 +83,7 @@ export const fetchChats = async (req, res) => {
       .find({ users: { $elemMatch: { $eq: userId } } })
       .populate(
         "users",
-        "-password -reviews -role -passwordResetToken -passwordResetTokenExpire"
+        "-password -reviews -role -passwordResetToken -passwordResetTokenExpire -followRequests"
       )
       .populate("latestMessage")
       .sort({ updatedAt: -1 })
@@ -91,7 +91,7 @@ export const fetchChats = async (req, res) => {
         results = await userModel.populate(results, {
           path: "latestMessage.sender",
           select:
-            "-password -reviews -role -passwordResetToken -passwordResetTokenExpire",
+            "-password -reviews -role -passwordResetToken -followRequests -passwordResetTokenExpire",
         });
         res.status(200).send({
           results: results,
