@@ -97,6 +97,11 @@ const projectSchema = new mongoose.Schema(
     category: {
       type: String,
     },
+    state: {
+      type: String,
+      default: "pending",
+      enum: ["pending", "approved", "rejected", "completed"],
+    },
   },
   { timestamps: true }
 );

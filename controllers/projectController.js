@@ -109,6 +109,7 @@ export const updateProject = async (req, res) => {
       status,
       sum_area,
       deletedImages,
+      state,
     } = req.body;
 
     let deleteImages = [];
@@ -196,6 +197,7 @@ export const updateProject = async (req, res) => {
         sum_area: sum_area || project.sum_area,
         thumbnails: updatedThumbnails,
         status: status || project.status,
+        state: state || project.state,
       },
       { new: true }
     );
