@@ -359,7 +359,9 @@ export const getAllUsers = async (req, res) => {
   try {
     const users = await userModel
       .find({})
-      .select("-password -passwordResetToken -passwordResetTokenExpire");
+      .select(
+        "-password -passwordResetToken -passwordResetTokenExpire -reviews"
+      );
 
     res.status(200).send({
       success: true,
@@ -384,7 +386,14 @@ export const getUserDetail = async (req, res) => {
       .findById(userId)
       .select(
         "-password -passwordResetToken -reviews -passwordResetTokenExpire"
-      );
+      )
+      .populate({
+        path: "reviews",
+        populate: {
+          path: "user",
+          select: "name profileImage email",
+        },
+      });
 
     res.status(200).send({
       success: true,
