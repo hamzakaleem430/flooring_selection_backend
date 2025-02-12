@@ -837,7 +837,16 @@ export const getReviews = async (req, res) => {
   try {
     const userId = req.params.id;
 
-    const user = await userModel.findById(userId).select("reviews");
+    const user = await userModel
+      .findById(userId)
+      .select("reviews")
+      .populate({
+        path: "reviews",
+        populate: {
+          path: "user",
+          select: "name profileImage email",
+        },
+      });
 
     if (!user) {
       return res.status(400).send({
