@@ -358,15 +358,18 @@ export const updateAccessToken = async (req, res, next) => {
 export const getAllUsers = async (req, res) => {
   try {
     const users = await userModel
-      .find({})
-      .select(
-        "-password -passwordResetToken -passwordResetTokenExpire -reviews"
-      );
+      .find({}, "-password -passwordResetToken -passwordResetTokenExpire ")
+      .select("reviews.user")
+      .lean();
 
+    const usersWithReviewCount = users.map((user) => ({
+      ...user,
+      reviewsCount: Array.isArray(user.reviews) ? user.reviews.length : 0,
+    }));
     res.status(200).send({
       success: true,
       message: "All users list!",
-      users: users,
+      users: usersWithReviewCount,
     });
   } catch (error) {
     console.log(error);
