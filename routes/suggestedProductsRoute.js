@@ -7,8 +7,8 @@ import { isAuthenticated } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/suggestedProducts", isAuthenticated, createSuggestedProduct);
+router.post("/add", isAuthenticated, createSuggestedProduct);
 
-router.get("/suggestedProducts/:id", getSuggestedProducts);
+router.get("/:id", getSuggestedProducts);
 
 export default router;
