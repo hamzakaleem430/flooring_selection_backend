@@ -14,6 +14,12 @@ const messageSchema = new mongoose.Schema(
       type: String,
       default: "text",
     },
+    products: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+      },
+    ],
     chat: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Chat",

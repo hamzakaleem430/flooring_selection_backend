@@ -5,8 +5,8 @@ import userModel from "../../models/userModel.js";
 // Create Message
 export const sendMessage = async (req, res) => {
   try {
-    const { content, chatId, contentType } = req.body;
-    if (!content || !chatId) {
+    const { content, chatId, contentType, products } = req.body;
+    if (!chatId || !contentType) {
       return res
         .status(400)
         .json({ message: "Invaild data passed into request" });
@@ -17,6 +17,7 @@ export const sendMessage = async (req, res) => {
       content: content,
       contentType: contentType,
       chat: chatId,
+      products: products,
     };
 
     var message = await messagesModel.create({ ...newMessage });
@@ -25,7 +26,7 @@ export const sendMessage = async (req, res) => {
       "sender",
       "name email profileImage isOnline"
     );
-    message = await message.populate("chat");
+    message = (await message.populate("chat")).populate("products");
     message = await userModel.populate(message, {
       path: "chat.users",
       select: "name email profileImage isOnline",
@@ -74,7 +75,8 @@ export const getChatMessages = async (req, res) => {
     const messages = await messagesModel
       .find({ chat: req.params.id })
       .populate("sender", "name email profileImage isOnline")
-      .populate("chat");
+      .populate("chat")
+      .populate("products");
 
     const chat = await chatModel.findById(chatId);
     if (chat) {
