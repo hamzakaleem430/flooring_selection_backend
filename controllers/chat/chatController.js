@@ -106,6 +106,37 @@ export const fetchChats = async (req, res) => {
     });
   }
 };
+// Fetch All Chats - For Admin
+export const fetchAllChats = async (req, res) => {
+  try {
+    await chatModel
+      .find({})
+      .populate(
+        "users",
+        "-password -reviews -role -passwordResetToken -passwordResetTokenExpire -followRequests"
+      )
+      .populate("latestMessage")
+      .sort({ updatedAt: -1 })
+      .then(async (results) => {
+        results = await userModel.populate(results, {
+          path: "latestMessage.sender",
+          select:
+            "-password -reviews -role -passwordResetToken -followRequests -passwordResetTokenExpire",
+        });
+        res.status(200).send({
+          results: results,
+        });
+      });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send({
+      success: false,
+      message: "Error occur while fetch chat, please try again!",
+      error: "error",
+    });
+  }
+};
+
 // Delete Chat
 export const deleteChat = async (req, res) => {
   try {
@@ -200,3 +231,5 @@ export const createGroupChat = async (req, res) => {
     });
   }
 };
+
+//
