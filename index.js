@@ -14,6 +14,7 @@ import messagesRoutes from "./routes/chat/messageRoutes.js";
 import notificationRoutes from "./routes/notificationRoute.js";
 import productRoutes from "./routes/productRoutes.js";
 import suggestedProductRoutes from "./routes/suggestedProductsRoute.js";
+import selectedProductsRoutes from "./routes/selectedProductsRoutes.js";
 
 // Config Dotenv
 dotenv.config();
@@ -41,6 +42,8 @@ app.use("/api/v1/messages", messagesRoutes);
 app.use("/api/v1/notification", notificationRoutes);
 app.use("/api/v1/product", productRoutes);
 app.use("/api/v1/suggestedProducts", suggestedProductRoutes);
+app.use("/api/v1/selectedProducts", selectedProductsRoutes);
+
 // Server
 app.use("/", (req, res) => {
   res.send(`<h1>Server is running...</h1>`);
