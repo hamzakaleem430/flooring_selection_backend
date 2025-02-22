@@ -4,24 +4,54 @@ import selectedProductsModel from "../models/selectedProductsModel.js";
 export const createSelectedProducts = async (req, res) => {
   try {
     const { user, products, project } = req.body;
+
     if (!user || !products || !project) {
       return res
         .status(400)
-        .json({ message: "Please provide all the required fields" });
+        .json({ message: "Please provide all required fields" });
     }
-    const selectedProducts = await selectedProductsModel.create({
-      user,
-      products,
-      project,
-    });
 
-    res.status(200).json({
-      success: true,
-      message: "Products added successfully",
-      products: selectedProducts,
-    });
+    const existingProject = await selectedProductsModel
+      .findOne({ project: project })
+      .populate("products");
+
+    if (existingProject) {
+      const existingProductIds = new Set(
+        existingProject.products.map((prod) => prod._id.toString())
+      );
+
+      const newProducts = products.filter(
+        (prod) => !existingProductIds.has(prod.toString())
+      );
+
+      if (newProducts.length > 0) {
+        await selectedProductsModel.updateOne(
+          { project },
+          { $push: { products: { $each: newProducts } } }
+        );
+
+        return res.status(200).json({
+          success: true,
+          message: "Products added successfully",
+        });
+      } else {
+        return res.status(200).json({
+          success: true,
+          message:
+            "No new products added. All products already exist in the project.",
+        });
+      }
+    } else {
+      await selectedProductsModel.create({ user, products, project });
+
+      return res.status(201).json({
+        success: true,
+        message: "New project created and products added successfully",
+      });
+    }
   } catch (error) {
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("Error adding products:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
