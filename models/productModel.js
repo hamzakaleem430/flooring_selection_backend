@@ -24,7 +24,6 @@ const productSchema = new mongoose.Schema(
     price: {
       type: Number,
       required: [true, "Product price is required"],
-      min: [0, "Price must be a positive value"],
     },
     images: {
       type: [String],
@@ -32,19 +31,17 @@ const productSchema = new mongoose.Schema(
     },
     brand: {
       type: String,
-      required: [true, "Brand is required"],
       trim: true,
     },
     variations: [
       {
-        type: { type: String, required: true },
-        options: { type: [String], required: true },
+        type: { type: String },
+        options: { type: [String] },
       },
     ],
     qr_code: {
       type: String,
-      unique: true,
-      trim: true,
+      default: "",
     },
   },
   { timestamps: true }
