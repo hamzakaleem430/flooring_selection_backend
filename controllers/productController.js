@@ -9,7 +9,7 @@ import { s3 } from "../middleware/uploadFiles.js";
 // Create Product
 export const createProduct = async (req, res) => {
   try {
-    const { name, description, price, brand, qr_code } = req.body;
+    const { name, description, price, brand, qrcode } = req.body;
 
     const userId = req.user._id;
 
@@ -50,7 +50,7 @@ export const createProduct = async (req, res) => {
       price,
       brand,
       variations,
-      qr_code,
+      qrcode,
       images,
     });
 
@@ -73,7 +73,7 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const productId = req.params.id;
-    const { name, description, price, brand, qr_code, deleteImage } = req.body;
+    const { name, description, price, brand, qrcode, deleteImage } = req.body;
 
     if (!productId) {
       return res.status(400).json({
@@ -168,7 +168,7 @@ export const updateProduct = async (req, res) => {
         price: price || product.price,
         brand: brand || product.brand,
         variations: variations || product.variations,
-        qr_code: qr_code || product.qr_code,
+        qrcode: qrcode || product.qrcode,
         images: updatedImages,
       },
       { new: true }
