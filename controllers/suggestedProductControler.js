@@ -48,7 +48,7 @@ export const getSuggestedProducts = async (req, res) => {
   try {
     const projectId = req.params.id;
     const suggestedProducts = await suggestedProductModal
-      .find({
+      .findOne({
         project: projectId,
       })
       .populate("product")
