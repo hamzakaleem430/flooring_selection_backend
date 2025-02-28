@@ -14,7 +14,6 @@ const uploadQRCodeToS3 = async (qrCodeBuffer, key) => {
       Key: `qrcodes/${key}.png`,
       Body: qrCodeBuffer,
       ContentType: "image/png",
-      ACL: "public-read",
     };
 
     await s3.send(new PutObjectCommand(uploadParams));
