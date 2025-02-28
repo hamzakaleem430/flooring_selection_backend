@@ -78,7 +78,7 @@ router.post("/addReply/:id", isAuthenticated, addReviewReply);
 router.get("/getReviews/:id", isAuthenticated, getReviews);
 
 // Upload Files
-router.post("/upload/file", isAuthenticated, uploadMiddleware, uploadFiles);
+router.post("/upload/file", uploadMiddleware, uploadFiles);
 
 // Get All Project Requests
 router.get("/getAllProjects/:id", getAllProjectrequests);

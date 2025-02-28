@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import { v4 as uuidv4 } from "uuid";
 
 const productSchema = new mongoose.Schema(
   {
@@ -40,10 +39,8 @@ const productSchema = new mongoose.Schema(
         options: { type: [String] },
       },
     ],
-    qrcode: {
-      type: String,
-      default: uuidv4(),
-    },
+    qr_code: { type: String, unique: true },
+    qr_code_image: { type: String },
   },
   { timestamps: true }
 );

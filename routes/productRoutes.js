@@ -6,6 +6,7 @@ import {
   deleteProduct,
   getAllProducts,
   getDealerProducts,
+  getProductByQRCode,
   getProductDetail,
   updateProduct,
 } from "../controllers/productController.js";
@@ -32,6 +33,9 @@ router.delete("/delete/:id", isAuthenticated, deleteProduct);
 
 // Delete All Products
 router.delete("/deleteAllUsers", isAuthenticated, isAdmin);
+
+// Get Product by Scanned QR Code
+router.get("/qrcode/:qr_code", getProductByQRCode);
 
 // Get Complete Coordinates
 // router.get("/getCompleteCoordinates", getCompleteCoordinates);

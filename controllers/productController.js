@@ -1,15 +1,38 @@
 import productModel from "../models/productModel.js";
 import dotenv from "dotenv";
 dotenv.config();
-import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { s3 } from "../middleware/uploadFiles.js";
-// import axios from "axios";
-// import decodePolyline from "decode-google-map-polyline";
+import QRCode from "qrcode";
+import { v4 as uuidv4 } from "uuid";
+
+// Upload QR Code Image to S3
+const uploadQRCodeToS3 = async (qrCodeBuffer, key) => {
+  try {
+    const uploadParams = {
+      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Key: `qrcodes/${key}.png`,
+      Body: qrCodeBuffer,
+      ContentType: "image/png",
+      ACL: "public-read",
+    };
+
+    await s3.send(new PutObjectCommand(uploadParams));
+
+    const AWS_REGION = "eu-north-1";
+
+    // Return S3 URL
+    return `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com/qrcodes/${key}.png`;
+  } catch (error) {
+    console.error("Error uploading QR Code to S3:", error);
+    throw new Error("Failed to upload QR code.");
+  }
+};
 
 // Create Product
 export const createProduct = async (req, res) => {
   try {
-    const { name, description, price, brand, qrcode } = req.body;
+    const { name, description, price, brand } = req.body;
 
     const userId = req.user._id;
 
@@ -43,21 +66,31 @@ export const createProduct = async (req, res) => {
 
     const images = req.files?.map((file) => file.location);
 
-    const product = await productModel.create({
+    // Generate a unique QR Code UUID
+    const qrCodeUUID = uuidv4();
+
+    // Generate QR Code as Buffer
+    const qrCodeBuffer = await QRCode.toBuffer(qrCodeUUID);
+
+    // Upload QR Code Image to S3
+    const qrCodeS3Url = await uploadQRCodeToS3(qrCodeBuffer, qrCodeUUID);
+
+    const newProduct = await productModel.create({
       user: userId,
       name,
       description,
       price,
       brand,
       variations,
-      qrcode,
       images,
+      qr_code: qrCodeUUID,
+      qr_code_image: qrCodeS3Url,
     });
 
     return res.status(200).json({
       success: true,
       message: "Product created successfully.",
-      product,
+      product: newProduct,
     });
   } catch (error) {
     console.log(error);
@@ -328,6 +361,27 @@ export const deleteProduct = async (req, res) => {
       message: "Error deleting product, please try again later.",
       error: error,
     });
+  }
+};
+
+// Get product through qrcode scan
+export const getProductByQRCode = async (req, res) => {
+  try {
+    const { qr_code } = req.params;
+
+    const product = await productModel.findOne({ qr_code });
+    if (!product) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found." });
+    }
+
+    return res.status(200).json({ success: true, product });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error fetching product.", error });
   }
 };
 
