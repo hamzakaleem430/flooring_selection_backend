@@ -82,7 +82,7 @@ export const getAllSelectedProductsByDealer = async (req, res) => {
   try {
     const projectId = req.params.id;
     const selectedProducts = await selectedProductsModel
-      .find({
+      .findOne({
         project: projectId,
       })
       .populate("products")
