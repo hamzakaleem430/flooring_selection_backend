@@ -14,6 +14,7 @@ export const s3 = new S3Client({
   },
   region: "eu-north-1",
   forcePathStyle: true,
+  requestTimeout: 300000,
 });
 
 const storage = multerS3({

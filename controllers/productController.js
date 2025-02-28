@@ -5,6 +5,7 @@ import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { s3 } from "../middleware/uploadFiles.js";
 import QRCode from "qrcode";
 import { v4 as uuidv4 } from "uuid";
+import { Upload } from "@aws-sdk/lib-storage";
 
 // Upload QR Code Image to S3
 const uploadQRCodeToS3 = async (qrCodeBuffer, key) => {
@@ -16,12 +17,19 @@ const uploadQRCodeToS3 = async (qrCodeBuffer, key) => {
       ContentType: "image/png",
     };
 
-    await s3.send(new PutObjectCommand(uploadParams));
+    // await s3.send(new PutObjectCommand(uploadParams));
 
     const AWS_REGION = "eu-north-1";
 
-    // Return S3 URL
-    return `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com/qrcodes/${key}.png`;
+    // Return S3 URL in the required format
+    const uploader = new Upload({
+      client: s3,
+      params: uploadParams,
+    });
+
+    await uploader.done();
+
+    return `https://s3.${AWS_REGION}.amazonaws.com/${process.env.AWS_S3_BUCKET_NAME}/qrcodes/${key}.png`;
   } catch (error) {
     console.error("Error uploading QR Code to S3:", error);
     throw new Error("Failed to upload QR code.");
