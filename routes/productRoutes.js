@@ -35,7 +35,7 @@ router.delete("/delete/:id", isAuthenticated, deleteProduct);
 router.delete("/deleteAllUsers", isAuthenticated, isAdmin);
 
 // Get Product by Scanned QR Code
-router.get("/qrcode/:qr_code", getProductByQRCode);
+router.get("/qrcode", getProductByQRCode);
 
 // Get Complete Coordinates
 // router.get("/getCompleteCoordinates", getCompleteCoordinates);
