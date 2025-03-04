@@ -10,6 +10,7 @@ import {
   hashPassword,
 } from "../helper/encryption.js";
 import { s3 } from "../middleware/uploadFiles.js";
+import notificationModel from "../models/notificationModel.js";
 
 // Register
 export const register = async (req, res) => {
@@ -725,7 +726,7 @@ export const deleteAllUsers = async (req, res) => {
 export const addReview = async (req, res) => {
   try {
     const userId = req.params.id;
-    const { review, rating } = req.body;
+    const { review: comment, rating } = req.body;
 
     const user = await userModel.findById(userId);
 
@@ -736,44 +737,78 @@ export const addReview = async (req, res) => {
       });
     }
 
-    const reviewData = {
-      user: req.user._id,
-      comment: review,
-      rating,
-    };
+    // Check if user has already reviewed
+    const reviewIndex = user.reviews.findIndex(
+      (rev) => rev.user.toString() === req.user._id.toString()
+    );
 
-    user.reviews?.push(reviewData);
-
-    let avg = 0;
-
-    user?.reviews.forEach((rev) => {
-      avg += rev.rating;
-    });
-
-    if (user) {
-      user.ratings = avg / user.reviews.length;
+    if (reviewIndex !== -1) {
+      // Update existing review
+      user.reviews[reviewIndex].comment = comment;
+      user.reviews[reviewIndex].rating = rating;
+      user.markModified("reviews");
+    } else {
+      // Add new review
+      user.reviews.push({
+        user: req.user._id,
+        comment,
+        rating,
+      });
     }
 
-    await user?.save();
+    // Calculate new average rating
+    const totalRating = user.reviews.reduce((sum, rev) => sum + rev.rating, 0);
+    user.ratings = totalRating / user.reviews.length;
 
-    res.status(200).send({
-      success: true,
-      message: "Review added successfully!",
-      user: user,
-    });
+    await user.save();
 
-    // const admins = await userModel.find({ role: "admin" });
-
-    // const notifications = admins.map((admin) => ({
-    //   user: admin._id,
-    //   subject: "📢 New User Review Alert!",
-    //   context: `${req.user.name} has just submitted a new user profile review. 🚀 Check it out now!`,
-    //   type: "admin",
-    //   redirectLink: "/dashboard/products",
-    // }));
+    const notifications = {
+      user: userId,
+      subject: "📢 New User Review Alert!",
+      context: `${req.user.name} has just submitted a new user profile review. 🚀 Check it out now!`,
+      type: "user",
+      redirectLink: "/dashboard/products",
+    };
 
     // // Create notifications for all admins
-    // await notificationModel.insertMany(notifications);
+    await notificationModel.create(notifications);
+
+    return res.status(200).send({
+      success: true,
+      message:
+        reviewIndex !== -1
+          ? "Review updated successfully!"
+          : "Review added successfully!",
+      user,
+    });
+
+    // const reviewData = {
+    //   user: req.user._id,
+    //   comment: review,
+    //   rating,
+    // };
+
+    // user.reviews?.push(reviewData);
+
+    // let avg = 0;
+
+    // user?.reviews.forEach((rev) => {
+    //   avg += rev.rating;
+    // });
+
+    // if (user) {
+    //   user.ratings = avg / user.reviews.length;
+    // }
+
+    // await user?.save();
+
+    // res.status(200).send({
+    //   success: true,
+    //   message: "Review added successfully!",
+    //   user: user,
+    // });
+
+    // const admins = await userModel.find({ role: "admin" });
   } catch (error) {
     console.log(error);
     res.status(500).send({
