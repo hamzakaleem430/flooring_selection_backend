@@ -373,7 +373,7 @@ export const deleteProduct = async (req, res) => {
 // Get product through qrcode scan
 export const getProductByQRCode = async (req, res) => {
   try {
-    const { name, price, brand, description, qr_code } = req.body;
+    const { name, price, qr_code } = req.query;
 
     if (qr_code) {
       const product = await productModel
@@ -392,8 +392,54 @@ export const getProductByQRCode = async (req, res) => {
         .findOne({
           name,
           price,
-          brand,
-          description,
+        })
+        .populate("user", "name email profileImage");
+      if (!product) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Product not found." });
+      }
+
+      return res.status(200).json({ success: true, product });
+    }
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error fetching product.", error });
+  }
+};
+
+// User Scan Product
+export const getUserProductByQRCode = async (req, res) => {
+  try {
+    const { name, price, qr_code, userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required.",
+      });
+    }
+
+    if (qr_code) {
+      const product = await productModel
+        .findOne({ qr_code, user: userId })
+        .populate("user", "name email profileImage");
+
+      if (!product) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Product not found." });
+      }
+
+      return res.status(200).json({ success: true, product });
+    } else {
+      const product = await productModel
+        .findOne({
+          name,
+          price,
+          user: userId,
         })
         .populate("user", "name email profileImage");
       if (!product) {

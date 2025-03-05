@@ -8,6 +8,7 @@ import {
   getDealerProducts,
   getProductByQRCode,
   getProductDetail,
+  getUserProductByQRCode,
   updateProduct,
 } from "../controllers/productController.js";
 
@@ -36,6 +37,9 @@ router.delete("/deleteAllUsers", isAuthenticated, isAdmin);
 
 // Get Product by Scanned QR Code
 router.get("/qrcode", getProductByQRCode);
+
+// Get User Product by Scanned QR Code
+router.get("/scan/qrcode", getUserProductByQRCode);
 
 // Get Complete Coordinates
 // router.get("/getCompleteCoordinates", getCompleteCoordinates);
