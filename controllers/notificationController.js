@@ -41,11 +41,15 @@ export const createNotification = async (req, res) => {
         context,
       };
 
-      await sendMail({
+      // Send email in background, don't fail notification creation if email fails
+      sendMail({
         email: user.email,
         subject: subject,
         template: "notification.ejs",
         data,
+      }).catch((error) => {
+        console.error(`Failed to send notification email to ${user.email}:`, error.message);
+        // Notification is still created even if email fails
       });
     }
 

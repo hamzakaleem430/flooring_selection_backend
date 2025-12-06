@@ -73,18 +73,22 @@ export const register = async (req, res) => {
     const activationToken = await createActivationToken(user);
     const activationCode = activationToken.activationCode;
 
-    // Send Verification Email
+    // Send Verification Email (non-blocking)
     const data = {
       user: { name: user.name },
       activationCode,
       activationLink: "http://localhost:3000/activation",
     };
 
-    await sendMail({
+    // Send email in background, don't fail registration if email fails
+    sendMail({
       email: user.email,
       subject: "Varification Email!",
       template: "activation_code.ejs",
       data,
+    }).catch((error) => {
+      console.error("Failed to send verification email:", error.message);
+      // Email sending failed, but registration should still succeed
     });
 
     res.status(200).send({
@@ -525,7 +529,7 @@ export const resetPassword = async (req, res) => {
       passwordResetTokenExpire: expireIn,
     });
 
-    // Send email to user
+    // Send email to user (non-blocking)
     const data = {
       user: {
         name: user.name,
@@ -533,11 +537,15 @@ export const resetPassword = async (req, res) => {
       },
     };
 
-    await sendMail({
+    // Send email in background, don't fail if email fails
+    sendMail({
       email: user.email,
       subject: "Reset Password",
       template: "reset-password.ejs",
       data,
+    }).catch((error) => {
+      console.error("Failed to send reset password email:", error.message);
+      // Email sending failed, but token is still generated
     });
 
     res.status(200).send({
