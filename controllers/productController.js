@@ -37,7 +37,7 @@ const uploadQRCodeToS3 = async (qrCodeBuffer, key) => {
 // Create Product
 export const createProduct = async (req, res) => {
   try {
-    const { name, description, price, brand, qr_code, qr_code_image } =
+    const { name, description, price, brand, qr_code, qr_code_image, variationImagesCount } =
       req.body;
 
     const userId = req.user._id;
@@ -70,16 +70,63 @@ export const createProduct = async (req, res) => {
       });
     }
 
-    const images = req.files?.map((file) => file.location);
+    // Separate main product images from variation images
+    const allFiles = req.files;
+    let mainProductImages = [];
+    let variationImagesByIndex = [];
 
-    // Generate a unique QR Code UUID
-    // const qrCodeUUID = uuidv4();
+    // Parse variation images count if provided
+    let variationImagesCountArray = [];
+    if (variationImagesCount) {
+      try {
+        variationImagesCountArray = JSON.parse(variationImagesCount);
+      } catch (e) {
+        console.log("Error parsing variationImagesCount", e);
+      }
+    }
 
-    // Generate QR Code as Buffer
-    // const qrCodeBuffer = await QRCode.toBuffer(qrCodeUUID);
+    // If we have variation images count, split files accordingly
+    if (variationImagesCountArray.length > 0) {
+      let fileIndex = 0;
+      
+      // First, get main product images (count is first element)
+      const mainImageCount = variationImagesCountArray[0] || 0;
+      mainProductImages = allFiles.slice(fileIndex, fileIndex + mainImageCount).map(f => f.location);
+      fileIndex += mainImageCount;
 
-    // Upload QR Code Image to S3
-    // const qrCodeS3Url = await uploadQRCodeToS3(qrCodeBuffer, qrCodeUUID);
+      // Then get variation images
+      for (let i = 1; i < variationImagesCountArray.length; i++) {
+        const count = variationImagesCountArray[i] || 0;
+        const varImages = allFiles.slice(fileIndex, fileIndex + count).map(f => f.location);
+        variationImagesByIndex.push(varImages);
+        fileIndex += count;
+      }
+    } else {
+      // Fallback: all files are main product images
+      mainProductImages = allFiles.map((file) => file.location);
+    }
+
+    // Add images to variations
+    if (variations && variationImagesByIndex.length > 0) {
+      variations = variations.map((v, vIndex) => {
+        const varImages = variationImagesByIndex[vIndex] || [];
+        // Split images by options count
+        const imagesPerOption = [];
+        const optionsCount = v.options.length;
+        const imagesPerOptionCount = Math.ceil(varImages.length / optionsCount);
+        
+        for (let i = 0; i < optionsCount; i++) {
+          const start = i * imagesPerOptionCount;
+          const end = start + imagesPerOptionCount;
+          imagesPerOption.push(varImages.slice(start, end));
+        }
+        
+        return {
+          ...v,
+          images: imagesPerOption
+        };
+      });
+    }
 
     const newProduct = await productModel.create({
       user: userId,
@@ -88,7 +135,7 @@ export const createProduct = async (req, res) => {
       price,
       brand,
       variations,
-      images,
+      images: mainProductImages,
       qr_code: qr_code,
       qr_code_image: qr_code_image,
     });
@@ -112,7 +159,7 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const productId = req.params.id;
-    const { name, description, price, brand, qrcode, deleteImage } = req.body;
+    const { name, description, price, brand, qrcode, deleteImage, variationImagesCount } = req.body;
 
     if (!productId) {
       return res.status(400).json({
@@ -190,14 +237,92 @@ export const updateProduct = async (req, res) => {
         });
       }
 
-      // Remove deleted images from database
+      // Remove deleted images from database (both main and variation images)
       product.images = product.images.filter(
         (url) => !deleteImages.includes(url)
       );
+      
+      // Also remove from variation images
+      if (product.variations) {
+        product.variations = product.variations.map(v => {
+          if (v.images && v.images.length > 0) {
+            v.images = v.images.map(imgArray => 
+              imgArray.filter(url => !deleteImages.includes(url))
+            );
+          }
+          return v;
+        });
+      }
     }
 
-    // Add new images to thumbnails array
-    const updatedImages = [...product.images, ...newImagesURL];
+    // Parse variation images count if provided
+    let variationImagesCountArray = [];
+    if (variationImagesCount) {
+      try {
+        variationImagesCountArray = JSON.parse(variationImagesCount);
+      } catch (e) {
+        console.log("Error parsing variationImagesCount", e);
+      }
+    }
+
+    // Separate main product images from variation images
+    let mainProductImages = [...product.images];
+    let variationImagesByIndex = [];
+
+    if (newImagesURL.length > 0 && variationImagesCountArray.length > 0) {
+      let fileIndex = 0;
+      
+      // First, get new main product images
+      const mainImageCount = variationImagesCountArray[0] || 0;
+      const newMainImages = newImagesURL.slice(fileIndex, fileIndex + mainImageCount);
+      mainProductImages = [...mainProductImages, ...newMainImages];
+      fileIndex += mainImageCount;
+
+      // Then get new variation images
+      for (let i = 1; i < variationImagesCountArray.length; i++) {
+        const count = variationImagesCountArray[i] || 0;
+        const varImages = newImagesURL.slice(fileIndex, fileIndex + count);
+        variationImagesByIndex.push(varImages);
+        fileIndex += count;
+      }
+    } else if (newImagesURL.length > 0) {
+      // Fallback: all new files are main product images
+      mainProductImages = [...mainProductImages, ...newImagesURL];
+    }
+
+    // Merge new variation images with existing ones
+    if (variations && variationImagesByIndex.length > 0) {
+      variations = variations.map((v, vIndex) => {
+        const newVarImages = variationImagesByIndex[vIndex] || [];
+        const existingVarImages = product.variations?.[vIndex]?.images || [];
+        
+        // Split new images by options count
+        const imagesPerOption = [...existingVarImages];
+        const optionsCount = v.options.length;
+        const imagesPerOptionCount = Math.ceil(newVarImages.length / optionsCount);
+        
+        for (let i = 0; i < optionsCount; i++) {
+          if (!imagesPerOption[i]) {
+            imagesPerOption[i] = [];
+          }
+          const start = i * imagesPerOptionCount;
+          const end = start + imagesPerOptionCount;
+          const newImages = newVarImages.slice(start, end);
+          imagesPerOption[i] = [...imagesPerOption[i], ...newImages];
+        }
+        
+        return {
+          ...v,
+          images: imagesPerOption
+        };
+      });
+    } else if (variations && product.variations) {
+      // Preserve existing variation images if no new ones
+      variations = variations.map((v, vIndex) => ({
+        ...v,
+        images: product.variations[vIndex]?.images || []
+      }));
+    }
 
     const updatedProduct = await productModel.findByIdAndUpdate(
       productId,
@@ -208,7 +333,7 @@ export const updateProduct = async (req, res) => {
         brand: brand || product.brand,
         variations: variations || product.variations,
         qrcode: qrcode || product.qrcode,
-        images: updatedImages,
+        images: mainProductImages,
       },
       { new: true }
     );

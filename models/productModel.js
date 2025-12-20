@@ -37,6 +37,7 @@ const productSchema = new mongoose.Schema(
       {
         type: { type: String },
         options: { type: [String] },
+        images: { type: [[String]], default: [] }, // Array of arrays for images per option
       },
     ],
     qr_code: { type: String, unique: true },
