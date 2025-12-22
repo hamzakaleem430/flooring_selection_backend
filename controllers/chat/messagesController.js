@@ -9,12 +9,12 @@ export const sendMessage = async (req, res) => {
     if (!chatId || !contentType) {
       return res
         .status(400)
-        .json({ message: "Invaild data passed into request" });
+        .json({ message: "Invalid data passed into request" });
     }
 
     const newMessage = {
       sender: req.user._id,
-      content: content,
+      content: content || '',
       contentType: contentType,
       chat: chatId,
       products: products,

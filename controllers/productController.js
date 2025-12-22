@@ -86,20 +86,38 @@ export const createProduct = async (req, res) => {
     }
 
     // If we have variation images count, split files accordingly
+    // variationImagesCountArray is a 2D array: [[2,3,1], [1,2]] means:
+    // - First variation: 3 options with 2, 3, and 1 images respectively
+    // - Second variation: 2 options with 1 and 2 images respectively
     if (variationImagesCountArray.length > 0) {
       let fileIndex = 0;
       
-      // First, get main product images (count is first element)
-      const mainImageCount = variationImagesCountArray[0] || 0;
-      mainProductImages = allFiles.slice(fileIndex, fileIndex + mainImageCount).map(f => f.location);
-      fileIndex += mainImageCount;
+      // Calculate total variation images to determine where main images end
+      let totalVariationImages = 0;
+      variationImagesCountArray.forEach(variationCounts => {
+        variationCounts.forEach(count => {
+          totalVariationImages += count;
+        });
+      });
 
-      // Then get variation images
-      for (let i = 1; i < variationImagesCountArray.length; i++) {
-        const count = variationImagesCountArray[i] || 0;
-        const varImages = allFiles.slice(fileIndex, fileIndex + count).map(f => f.location);
-        variationImagesByIndex.push(varImages);
-        fileIndex += count;
+      // Main product images come first
+      const mainImageCount = allFiles.length - totalVariationImages;
+      mainProductImages = allFiles.slice(0, mainImageCount).map(f => f.location);
+      fileIndex = mainImageCount;
+
+      // Then get variation images organized by variation and option
+      for (let vIndex = 0; vIndex < variationImagesCountArray.length; vIndex++) {
+        const optionCounts = variationImagesCountArray[vIndex];
+        const variationImages = [];
+        
+        for (let oIndex = 0; oIndex < optionCounts.length; oIndex++) {
+          const imageCount = optionCounts[oIndex];
+          const optionImages = allFiles.slice(fileIndex, fileIndex + imageCount).map(f => f.location);
+          variationImages.push(optionImages);
+          fileIndex += imageCount;
+        }
+        
+        variationImagesByIndex.push(variationImages);
       }
     } else {
       // Fallback: all files are main product images
@@ -109,21 +127,9 @@ export const createProduct = async (req, res) => {
     // Add images to variations
     if (variations && variationImagesByIndex.length > 0) {
       variations = variations.map((v, vIndex) => {
-        const varImages = variationImagesByIndex[vIndex] || [];
-        // Split images by options count
-        const imagesPerOption = [];
-        const optionsCount = v.options.length;
-        const imagesPerOptionCount = Math.ceil(varImages.length / optionsCount);
-        
-        for (let i = 0; i < optionsCount; i++) {
-          const start = i * imagesPerOptionCount;
-          const end = start + imagesPerOptionCount;
-          imagesPerOption.push(varImages.slice(start, end));
-        }
-        
         return {
           ...v,
-          images: imagesPerOption
+          images: variationImagesByIndex[vIndex] || []
         };
       });
     }
@@ -269,21 +275,39 @@ export const updateProduct = async (req, res) => {
     let mainProductImages = [...product.images];
     let variationImagesByIndex = [];
 
+    // variationImagesCountArray is a 2D array: [[2,3,1], [1,2]] means:
+    // - First variation: 3 options with 2, 3, and 1 images respectively
+    // - Second variation: 2 options with 1 and 2 images respectively
     if (newImagesURL.length > 0 && variationImagesCountArray.length > 0) {
       let fileIndex = 0;
       
-      // First, get new main product images
-      const mainImageCount = variationImagesCountArray[0] || 0;
-      const newMainImages = newImagesURL.slice(fileIndex, fileIndex + mainImageCount);
-      mainProductImages = [...mainProductImages, ...newMainImages];
-      fileIndex += mainImageCount;
+      // Calculate total variation images to determine where main images end
+      let totalVariationImages = 0;
+      variationImagesCountArray.forEach(variationCounts => {
+        variationCounts.forEach(count => {
+          totalVariationImages += count;
+        });
+      });
 
-      // Then get new variation images
-      for (let i = 1; i < variationImagesCountArray.length; i++) {
-        const count = variationImagesCountArray[i] || 0;
-        const varImages = newImagesURL.slice(fileIndex, fileIndex + count);
-        variationImagesByIndex.push(varImages);
-        fileIndex += count;
+      // New main product images come first
+      const mainImageCount = newImagesURL.length - totalVariationImages;
+      const newMainImages = newImagesURL.slice(0, mainImageCount);
+      mainProductImages = [...mainProductImages, ...newMainImages];
+      fileIndex = mainImageCount;
+
+      // Then get new variation images organized by variation and option
+      for (let vIndex = 0; vIndex < variationImagesCountArray.length; vIndex++) {
+        const optionCounts = variationImagesCountArray[vIndex];
+        const variationImages = [];
+        
+        for (let oIndex = 0; oIndex < optionCounts.length; oIndex++) {
+          const imageCount = optionCounts[oIndex];
+          const optionImages = newImagesURL.slice(fileIndex, fileIndex + imageCount);
+          variationImages.push(optionImages);
+          fileIndex += imageCount;
+        }
+        
+        variationImagesByIndex.push(variationImages);
       }
     } else if (newImagesURL.length > 0) {
       // Fallback: all new files are main product images
@@ -296,19 +320,16 @@ export const updateProduct = async (req, res) => {
         const newVarImages = variationImagesByIndex[vIndex] || [];
         const existingVarImages = product.variations?.[vIndex]?.images || [];
         
-        // Split new images by options count
-        const imagesPerOption = [...existingVarImages];
+        // newVarImages is already organized as [[img1, img2], [img3], [img4, img5, img6]]
+        // where each sub-array corresponds to one option
+        // Merge new images with existing ones per option
+        const imagesPerOption = [];
         const optionsCount = v.options.length;
-        const imagesPerOptionCount = Math.ceil(newVarImages.length / optionsCount);
         
         for (let i = 0; i < optionsCount; i++) {
-          if (!imagesPerOption[i]) {
-            imagesPerOption[i] = [];
-          }
-          const start = i * imagesPerOptionCount;
-          const end = start + imagesPerOptionCount;
-          const newImages = newVarImages.slice(start, end);
-          imagesPerOption[i] = [...imagesPerOption[i], ...newImages];
+          const existingImages = existingVarImages[i] || [];
+          const newImages = newVarImages[i] || [];
+          imagesPerOption[i] = [...existingImages, ...newImages];
         }
         
         return {
