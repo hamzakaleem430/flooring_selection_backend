@@ -165,7 +165,7 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const productId = req.params.id;
-    const { name, description, price, brand, qrcode, deleteImage, variationImagesCount } = req.body;
+    const { name, description, price, brand, qrcode, deleteImage, deleteVariationImages, variationImagesCount } = req.body;
 
     console.log("Update Product Request Body:", {
       name,
@@ -173,7 +173,8 @@ export const updateProduct = async (req, res) => {
       brand,
       hasFiles: !!req.files,
       filesCount: req.files?.length || 0,
-      variationImagesCount
+      variationImagesCount,
+      deleteVariationImages
     });
 
     if (!productId) {
@@ -226,7 +227,7 @@ export const updateProduct = async (req, res) => {
       });
     }
 
-    // Handle deletion of old thumbnails
+    // Handle deletion of old main images
     if (deleteImages && deleteImages.length > 0) {
       const deleteKeys = deleteImages?.map((url) => url.split("/").pop());
 
@@ -241,28 +242,64 @@ export const updateProduct = async (req, res) => {
             )
           )
         );
-        console.log("Selected old thumbnails deleted from S3 successfully");
+        console.log("Selected old main images deleted from S3 successfully");
       } catch (error) {
-        console.error("Error deleting old thumbnails from S3:", error);
+        console.error("Error deleting old main images from S3:", error);
         return res.status(500).json({
           success: false,
           message:
-            "Error occurred while deleting thumbnails. Please try again.",
+            "Error occurred while deleting images. Please try again.",
           error: error.message,
         });
       }
 
-      // Remove deleted images from database (both main and variation images)
+      // Remove deleted images from database
       product.images = product.images.filter(
         (url) => !deleteImages.includes(url)
       );
-      
-      // Also remove from variation images
+    }
+
+    // Handle deletion of variation images
+    let deleteVariationImagesList = [];
+    if (deleteVariationImages) {
+      try {
+        deleteVariationImagesList = JSON.parse(deleteVariationImages);
+      } catch (parseError) {
+        console.log("Error parsing deleteVariationImages", parseError);
+      }
+    }
+
+    if (deleteVariationImagesList && deleteVariationImagesList.length > 0) {
+      const deleteKeys = deleteVariationImagesList.map((url) => url.split("/").pop());
+
+      try {
+        await Promise.all(
+          deleteKeys.map((key) =>
+            s3.send(
+              new DeleteObjectCommand({
+                Bucket: process.env.AWS_S3_BUCKET_NAME,
+                Key: key,
+              })
+            )
+          )
+        );
+        console.log("Selected old variation images deleted from S3 successfully");
+      } catch (error) {
+        console.error("Error deleting old variation images from S3:", error);
+        return res.status(500).json({
+          success: false,
+          message:
+            "Error occurred while deleting variation images. Please try again.",
+          error: error.message,
+        });
+      }
+
+      // Remove deleted variation images from database
       if (product.variations) {
         product.variations = product.variations.map(v => {
           if (v.images && v.images.length > 0) {
             v.images = v.images.map(imgArray => 
-              imgArray.filter(url => !deleteImages.includes(url))
+              Array.isArray(imgArray) ? imgArray.filter(url => !deleteVariationImagesList.includes(url)) : []
             );
           }
           return v;
