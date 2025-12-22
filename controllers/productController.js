@@ -167,6 +167,15 @@ export const updateProduct = async (req, res) => {
     const productId = req.params.id;
     const { name, description, price, brand, qrcode, deleteImage, variationImagesCount } = req.body;
 
+    console.log("Update Product Request Body:", {
+      name,
+      price,
+      brand,
+      hasFiles: !!req.files,
+      filesCount: req.files?.length || 0,
+      variationImagesCount
+    });
+
     if (!productId) {
       return res.status(400).json({
         success: false,
@@ -315,7 +324,7 @@ export const updateProduct = async (req, res) => {
     }
 
     // Merge new variation images with existing ones
-    if (variations && variationImagesByIndex.length > 0) {
+    if (variations) {
       variations = variations.map((v, vIndex) => {
         const newVarImages = variationImagesByIndex[vIndex] || [];
         const existingVarImages = product.variations?.[vIndex]?.images || [];
@@ -327,8 +336,8 @@ export const updateProduct = async (req, res) => {
         const optionsCount = v.options.length;
         
         for (let i = 0; i < optionsCount; i++) {
-          const existingImages = existingVarImages[i] || [];
-          const newImages = newVarImages[i] || [];
+          const existingImages = Array.isArray(existingVarImages[i]) ? existingVarImages[i] : [];
+          const newImages = Array.isArray(newVarImages[i]) ? newVarImages[i] : [];
           imagesPerOption[i] = [...existingImages, ...newImages];
         }
         
@@ -337,12 +346,6 @@ export const updateProduct = async (req, res) => {
           images: imagesPerOption
         };
       });
-    } else if (variations && product.variations) {
-      // Preserve existing variation images if no new ones
-      variations = variations.map((v, vIndex) => ({
-        ...v,
-        images: product.variations[vIndex]?.images || []
-      }));
     }
 
     const updatedProduct = await productModel.findByIdAndUpdate(
@@ -359,17 +362,21 @@ export const updateProduct = async (req, res) => {
       { new: true }
     );
 
+    console.log("Product updated successfully:", updatedProduct._id);
+
     return res.status(200).json({
       success: true,
       message: "Product updated successfully.",
-      updatedProduct,
+      product: updatedProduct,
     });
   } catch (error) {
-    console.log(error);
+    console.error("Error updating product:", error);
+    console.error("Error stack:", error.stack);
     return res.status(500).json({
       success: false,
       message: "Error updating product, please try again later.",
-      error: error,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
