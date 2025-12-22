@@ -53,7 +53,10 @@ export const register = async (req, res) => {
       });
     }
 
-    const isExisting = await userModel.findOne({ email: email });
+    // Convert email to lowercase for case-insensitive comparison
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const isExisting = await userModel.findOne({ email: normalizedEmail });
 
     if (isExisting) {
       return res.status(400).send({
@@ -64,7 +67,7 @@ export const register = async (req, res) => {
 
     const user = {
       name,
-      email,
+      email: normalizedEmail,
       password,
       category,
       profileImage,
@@ -190,7 +193,10 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    const user = await userModel.findOne({ email: email });
+    // Convert email to lowercase for case-insensitive comparison
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const user = await userModel.findOne({ email: normalizedEmail });
     if (!user) {
       return res.status(400).send({
         success: false,
@@ -252,12 +258,15 @@ export const socialAuth = async (req, res) => {
   try {
     const { name, email, profileImage, category } = req.body;
 
-    let user = await userModel.findOne({ email });
+    // Convert email to lowercase for case-insensitive comparison
+    const normalizedEmail = email.toLowerCase().trim();
+
+    let user = await userModel.findOne({ email: normalizedEmail });
 
     if (!user) {
       const newUser = await userModel.create({
         name,
-        email,
+        email: normalizedEmail,
         profileImage,
         category,
       });
@@ -508,8 +517,11 @@ export const resetPassword = async (req, res) => {
       });
     }
 
+    // Convert email to lowercase for case-insensitive comparison
+    const normalizedEmail = email.toLowerCase().trim();
+
     const user = await userModel
-      .findOne({ email: email })
+      .findOne({ email: normalizedEmail })
       .select(
         "_id name email password passwordResetToken passwordResetTokenExpire"
       );
