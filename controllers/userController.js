@@ -53,10 +53,11 @@ export const register = async (req, res) => {
       });
     }
 
-    // Convert email to lowercase for case-insensitive comparison
-    const normalizedEmail = email.toLowerCase().trim();
-
-    const isExisting = await userModel.findOne({ email: normalizedEmail });
+    // Use case-insensitive regex search to check for existing user
+    const trimmedEmail = email.trim();
+    const isExisting = await userModel.findOne({ 
+      email: { $regex: new RegExp(`^${trimmedEmail}$`, 'i') }
+    });
 
     if (isExisting) {
       return res.status(400).send({
@@ -67,7 +68,7 @@ export const register = async (req, res) => {
 
     const user = {
       name,
-      email: normalizedEmail,
+      email: trimmedEmail.toLowerCase(),
       password,
       category,
       profileImage,
@@ -146,9 +147,11 @@ export const verificationUser = async (req, res) => {
     }
     const { name, email, password, category, profileImage } = newUser.user;
 
-    // Existing User
-
-    const isExisting = await userModel.findOne({ email });
+    // Check for existing user with case-insensitive search
+    const trimmedEmail = email.trim();
+    const isExisting = await userModel.findOne({ 
+      email: { $regex: new RegExp(`^${trimmedEmail}$`, 'i') }
+    });
 
     if (isExisting) {
       return res.status(400).send({
@@ -161,7 +164,7 @@ export const verificationUser = async (req, res) => {
 
     const user = await userModel.create({
       name,
-      email,
+      email: trimmedEmail.toLowerCase(),
       password: hashedPassword,
       category,
       profileImage,
@@ -193,10 +196,11 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Convert email to lowercase for case-insensitive comparison
-    const normalizedEmail = email.toLowerCase().trim();
-
-    const user = await userModel.findOne({ email: normalizedEmail });
+    // Use case-insensitive regex search to find user regardless of stored case
+    const trimmedEmail = email.trim();
+    const user = await userModel.findOne({ 
+      email: { $regex: new RegExp(`^${trimmedEmail}$`, 'i') }
+    });
     if (!user) {
       return res.status(400).send({
         success: false,
@@ -258,15 +262,16 @@ export const socialAuth = async (req, res) => {
   try {
     const { name, email, profileImage, category } = req.body;
 
-    // Convert email to lowercase for case-insensitive comparison
-    const normalizedEmail = email.toLowerCase().trim();
-
-    let user = await userModel.findOne({ email: normalizedEmail });
+    // Use case-insensitive regex search
+    const trimmedEmail = email.trim();
+    let user = await userModel.findOne({ 
+      email: { $regex: new RegExp(`^${trimmedEmail}$`, 'i') }
+    });
 
     if (!user) {
       const newUser = await userModel.create({
         name,
-        email: normalizedEmail,
+        email: trimmedEmail.toLowerCase(),
         profileImage,
         category,
       });
@@ -517,11 +522,12 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    // Convert email to lowercase for case-insensitive comparison
-    const normalizedEmail = email.toLowerCase().trim();
-
+    // Use case-insensitive regex search
+    const trimmedEmail = email.trim();
     const user = await userModel
-      .findOne({ email: normalizedEmail })
+      .findOne({ 
+        email: { $regex: new RegExp(`^${trimmedEmail}$`, 'i') }
+      })
       .select(
         "_id name email password passwordResetToken passwordResetTokenExpire"
       );
