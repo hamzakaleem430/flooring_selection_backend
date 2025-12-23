@@ -11,13 +11,38 @@ export const createSelectedProducts = async (req, res) => {
         .json({ message: "Please provide all required fields" });
     }
 
-    const existingProject = await selectedProductsModel
-      .findOne({ project: project })
-      .populate("products.product");
+    let existingProject = await selectedProductsModel
+      .findOne({ project: project });
 
     if (existingProject) {
+      // Handle backward compatibility: Check if products array has old format
+      if (existingProject.products && existingProject.products.length > 0) {
+        const firstProduct = existingProject.products[0];
+        
+        // Old format: products is array of ObjectIds (no nested 'product' field)
+        if (!firstProduct.product && !firstProduct.quantity) {
+          console.log('Migrating old format selected products to new format...');
+          // Migrate to new format
+          const oldProducts = existingProject.products;
+          existingProject.products = oldProducts.map(productId => ({
+            product: productId,
+            quantity: 1
+          }));
+          await existingProject.save();
+          console.log('Migration complete for project:', project);
+        }
+      }
+
+      // Now populate
+      existingProject = await selectedProductsModel
+        .findById(existingProject._id)
+        .populate("products.product");
+
       const existingProductIds = new Set(
-        existingProject.products.map((item) => item.product._id.toString())
+        existingProject.products.map((item) => {
+          const prodId = item.product?._id || item.product;
+          return prodId ? prodId.toString() : null;
+        }).filter(id => id !== null)
       );
 
       // Convert products array to objects with quantity
@@ -74,7 +99,36 @@ export const createSelectedProducts = async (req, res) => {
 export const getAllSelectedProductsByUser = async (req, res) => {
   try {
     const userId = req.params.id;
-    const selectedProducts = await selectedProductsModel
+    let selectedProductsList = await selectedProductsModel
+      .find({
+        user: userId,
+      })
+      .populate("user", "name email profileImage ratings")
+      .populate("project");
+
+    // Handle backward compatibility for each document
+    for (let i = 0; i < selectedProductsList.length; i++) {
+      let doc = selectedProductsList[i];
+      
+      if (doc.products && doc.products.length > 0) {
+        const firstProduct = doc.products[0];
+        
+        // Old format: products is array of ObjectIds (no nested 'product' field)
+        if (!firstProduct.product && !firstProduct.quantity) {
+          console.log('Migrating old format selected products to new format for user:', userId);
+          // Migrate to new format
+          const oldProducts = doc.products;
+          doc.products = oldProducts.map(productId => ({
+            product: productId,
+            quantity: 1
+          }));
+          await doc.save();
+        }
+      }
+    }
+
+    // Re-fetch with proper population
+    selectedProductsList = await selectedProductsModel
       .find({
         user: userId,
       })
@@ -85,9 +139,10 @@ export const getAllSelectedProductsByUser = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "All selected products fetched successfully",
-      products: selectedProducts,
+      products: selectedProductsList,
     });
   } catch (error) {
+    console.error("Error in getAllSelectedProductsByUser:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -96,10 +151,41 @@ export const getAllSelectedProductsByUser = async (req, res) => {
 export const getAllSelectedProductsByDealer = async (req, res) => {
   try {
     const projectId = req.params.id;
-    const selectedProducts = await selectedProductsModel
+    let selectedProducts = await selectedProductsModel
       .findOne({
         project: projectId,
       })
+      .populate("user", "name email profileImage ratings")
+      .populate("project");
+
+    if (!selectedProducts) {
+      return res.status(200).json({
+        success: true,
+        products: null,
+      });
+    }
+
+    // Handle backward compatibility: Check if products array has old format (direct IDs) or new format (objects)
+    if (selectedProducts.products && selectedProducts.products.length > 0) {
+      const firstProduct = selectedProducts.products[0];
+      
+      // Old format: products is array of ObjectIds (no nested 'product' field)
+      if (!firstProduct.product && !firstProduct.quantity) {
+        console.log('Migrating old format selected products to new format for project:', projectId);
+        // Migrate to new format
+        const oldProducts = selectedProducts.products;
+        selectedProducts.products = oldProducts.map(productId => ({
+          product: productId,
+          quantity: 1
+        }));
+        await selectedProducts.save();
+        console.log('Migration complete');
+      }
+    }
+
+    // Now populate with the correct path
+    selectedProducts = await selectedProductsModel
+      .findById(selectedProducts._id)
       .populate("products.product")
       .populate("user", "name email profileImage ratings")
       .populate("project");
@@ -109,6 +195,7 @@ export const getAllSelectedProductsByDealer = async (req, res) => {
       products: selectedProducts,
     });
   } catch (error) {
+    console.error("Error in getAllSelectedProductsByDealer:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
