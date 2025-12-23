@@ -135,3 +135,42 @@ export const deleteSuggestedProduct = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+
+// Update Suggested Product Price
+export const updateSuggestedPrice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { suggestedPrice } = req.body;
+
+    if (suggestedPrice !== null && suggestedPrice !== undefined && suggestedPrice < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Suggested price cannot be negative",
+      });
+    }
+
+    const suggestedProduct = await suggestedProductModal
+      .findByIdAndUpdate(
+        id,
+        { suggestedPrice: suggestedPrice === "" ? null : suggestedPrice },
+        { new: true }
+      )
+      .populate("product");
+
+    if (!suggestedProduct) {
+      return res.status(404).json({
+        success: false,
+        message: "Suggested product not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Suggested price updated successfully",
+      data: suggestedProduct,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};

@@ -17,6 +17,10 @@ const selectedProductsSchema = new mongoose.Schema(
           default: 1,
           min: 1,
         },
+        suggestedPrice: {
+          type: Number,
+          default: null,
+        },
       },
     ],
     project: {

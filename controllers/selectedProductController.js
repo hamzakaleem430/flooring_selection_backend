@@ -308,3 +308,54 @@ export const removeSelectedProduct = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
   }
 };
+
+// Update Selected Product Suggested Price
+export const updateSelectedProductSuggestedPrice = async (req, res) => {
+  try {
+    const { projectId, productId } = req.params;
+    const { suggestedPrice } = req.body;
+
+    if (suggestedPrice !== null && suggestedPrice !== undefined && suggestedPrice < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Suggested price cannot be negative",
+      });
+    }
+
+    const selectedProducts = await selectedProductsModel.findOne({
+      project: projectId,
+    });
+
+    if (!selectedProducts) {
+      return res.status(404).json({
+        success: false,
+        message: "Selected products not found",
+      });
+    }
+
+    const productIndex = selectedProducts.products.findIndex(
+      (item) => item && item.product && item.product.toString() === productId
+    );
+
+    if (productIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found in selected list",
+      });
+    }
+
+    selectedProducts.products[productIndex].suggestedPrice = suggestedPrice === "" ? null : suggestedPrice;
+    await selectedProducts.save();
+
+    await selectedProducts.populate("products.product");
+
+    res.status(200).json({
+      success: true,
+      message: "Suggested price updated successfully",
+      products: selectedProducts,
+    });
+  } catch (error) {
+    console.error("Error in updateSelectedProductSuggestedPrice:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};

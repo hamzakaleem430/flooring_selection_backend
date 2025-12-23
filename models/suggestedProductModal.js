@@ -20,6 +20,10 @@ const suggestedProductModalSchema = new Schema(
       default: 1,
       min: 1,
     },
+    suggestedPrice: {
+      type: Number,
+      default: null,
+    },
   },
   { timestamps: true }
 );
