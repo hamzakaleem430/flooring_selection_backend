@@ -2,12 +2,24 @@ import { Server as SocketIOServer } from "socket.io";
 import userModel from "./models/userModel.js";
 
 export const initialSocketServer = async (server) => {
-  const io = new SocketIOServer(server);
+  const io = new SocketIOServer(server, {
+    cors: {
+      origin: "*", // Configure with specific frontend URL in production
+      methods: ["GET", "POST"]
+    }
+  });
 
   io.on("connection", async (socket) => {
     console.log("Connected: User is online!");
 
     const { userID } = socket.handshake.query;
+
+    // Check if userID is provided
+    if (!userID || userID === 'undefined' || userID === 'null') {
+      console.warn("UserID is missing or invalid in the connection handshake.");
+      socket.disconnect(); // Prevent connecting without a valid user ID
+      return;
+    }
 
     console.log("User ID:", userID);
 
@@ -51,14 +63,13 @@ export const initialSocketServer = async (server) => {
 
     // ---------------Typing------------>
     socket.on("typing", (room) => {
-      console.log(" start Troom:", room);
-      socket.in(room).emit("typing");
+      console.log(`User ${userID} started typing in room: ${room}`);
+      socket.in(room).emit("typing", { userID });
     });
 
     socket.on("stopTyping", (room) => {
-      console.log(" stop Troom:", room);
-
-      socket.in(room).emit("stopTyping");
+      console.log(`User ${userID} stopped typing in room: ${room}`);
+      socket.in(room).emit("stopTyping", { userID });
     });
 
     // -------------------------Handle disconnect User----------------->
@@ -66,20 +77,20 @@ export const initialSocketServer = async (server) => {
       console.log(`User with ID: ${userID} disconnected!`);
 
       try {
-        if (user) {
+        if (user && userID && userID !== 'undefined' && userID !== 'null') {
           await userModel.findByIdAndUpdate(
             userID,
             { isOnline: false },
             { new: true }
           );
           console.log(
-            `User ${user.firstName} ${user.lastName} is now offline.`
+            `User ${user.name || user.firstName + ' ' + user.lastName} is now offline.`
           );
 
           // Emit event for all users to update their chat lists
           io.emit("newUserData", { userID, isOnline: false });
         } else {
-          console.warn(`User ${userID} was not found when disconnecting.`);
+          console.warn(`User with ID ${userID} was not found when disconnecting.`);
         }
       } catch (error) {
         console.error("Error updating user's offline status:", error);
