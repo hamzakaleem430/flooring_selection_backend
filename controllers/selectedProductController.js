@@ -3,7 +3,7 @@ import selectedProductsModel from "../models/selectedProductsModel.js";
 // Create Selected Products
 export const createSelectedProducts = async (req, res) => {
   try {
-    const { user, products, project, quantity } = req.body;
+    const { user, products, project, quantity, suggestedPrice } = req.body;
 
     if (!user || !products || !project) {
       return res
@@ -45,12 +45,13 @@ export const createSelectedProducts = async (req, res) => {
         }).filter(id => id !== null)
       );
 
-      // Convert products array to objects with quantity
+      // Convert products array to objects with quantity and suggestedPrice
       const productsToAdd = products
         .filter((prodId) => !existingProductIds.has(prodId.toString()))
         .map((prodId) => ({
           product: prodId,
           quantity: quantity || 1,
+          suggestedPrice: suggestedPrice || null,
         }));
 
       if (productsToAdd.length > 0) {
@@ -75,6 +76,7 @@ export const createSelectedProducts = async (req, res) => {
       const formattedProducts = products.map((prodId) => ({
         product: prodId,
         quantity: quantity || 1,
+        suggestedPrice: suggestedPrice || null,
       }));
 
       await selectedProductsModel.create({ 
