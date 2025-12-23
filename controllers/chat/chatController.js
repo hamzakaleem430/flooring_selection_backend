@@ -259,34 +259,54 @@ export const createGroupChat = async (req, res) => {
   }
 };
 
-// Get chat by project ID
+// Get chat by project ID and add user if needed
 export const getChatByProjectId = async (req, res) => {
   try {
     const { projectId } = req.params;
+    const { userId } = req.query; // Get userId from query params
 
-    const chat = await chatModel
-      .findOne({
-        projectId: projectId,
-        isGroupChat: true,
-      })
-      .populate("users", "name email profileImage isOnline status")
-      .populate("groupAdmin", "name email profileImage isOnline status");
+    console.log('Fetching chat for project:', projectId, 'userId:', userId);
+
+    let chat = await chatModel.findOne({
+      projectId: projectId,
+      isGroupChat: true,
+    });
 
     if (!chat) {
       return res.status(404).json({
         success: false,
-        message: "Chat not found for this project",
+        message: "Chat not found for this project. Chat is created automatically when a project is created.",
       });
     }
+
+    // If userId is provided, check if user needs to be added
+    if (userId) {
+      const userIdStr = userId.toString();
+      const isUserInChat = chat.users.some((u) => u.toString() === userIdStr);
+
+      if (!isUserInChat) {
+        console.log('Adding user to chat');
+        chat.users.push(userId);
+        await chat.save();
+      } else {
+        console.log('User already in chat');
+      }
+    }
+
+    // Populate and return
+    const populatedChat = await chatModel
+      .findById(chat._id)
+      .populate("users", "name email profileImage isOnline status")
+      .populate("groupAdmin", "name email profileImage isOnline status");
 
     res.status(200).json({
       success: true,
       message: "Chat found",
-      _id: chat._id,
-      chat: chat,
+      _id: populatedChat._id,
+      chat: populatedChat,
     });
   } catch (error) {
-    console.log(error);
+    console.error('Error in getChatByProjectId:', error);
     res.status(500).send({
       success: false,
       message: "Error fetching chat",
