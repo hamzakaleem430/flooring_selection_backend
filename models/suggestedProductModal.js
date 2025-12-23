@@ -15,6 +15,11 @@ const suggestedProductModalSchema = new Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "projects",
     },
+    quantity: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
   },
   { timestamps: true }
 );

@@ -3,7 +3,7 @@ import selectedProductsModel from "../models/selectedProductsModel.js";
 // Create Selected Products
 export const createSelectedProducts = async (req, res) => {
   try {
-    const { user, products, project } = req.body;
+    const { user, products, project, quantity } = req.body;
 
     if (!user || !products || !project) {
       return res
@@ -13,21 +13,25 @@ export const createSelectedProducts = async (req, res) => {
 
     const existingProject = await selectedProductsModel
       .findOne({ project: project })
-      .populate("products");
+      .populate("products.product");
 
     if (existingProject) {
       const existingProductIds = new Set(
-        existingProject.products.map((prod) => prod._id.toString())
+        existingProject.products.map((item) => item.product._id.toString())
       );
 
-      const newProducts = products.filter(
-        (prod) => !existingProductIds.has(prod.toString())
-      );
+      // Convert products array to objects with quantity
+      const productsToAdd = products
+        .filter((prodId) => !existingProductIds.has(prodId.toString()))
+        .map((prodId) => ({
+          product: prodId,
+          quantity: quantity || 1,
+        }));
 
-      if (newProducts.length > 0) {
+      if (productsToAdd.length > 0) {
         await selectedProductsModel.updateOne(
           { project },
-          { $push: { products: { $each: newProducts } } }
+          { $push: { products: { $each: productsToAdd } } }
         );
 
         return res.status(200).json({
@@ -42,7 +46,17 @@ export const createSelectedProducts = async (req, res) => {
         });
       }
     } else {
-      await selectedProductsModel.create({ user, products, project });
+      // Create new with products as objects
+      const formattedProducts = products.map((prodId) => ({
+        product: prodId,
+        quantity: quantity || 1,
+      }));
+
+      await selectedProductsModel.create({ 
+        user, 
+        products: formattedProducts, 
+        project 
+      });
 
       return res.status(201).json({
         success: true,
@@ -64,7 +78,7 @@ export const getAllSelectedProductsByUser = async (req, res) => {
       .find({
         user: userId,
       })
-      .populate("products")
+      .populate("products.product")
       .populate("user", "name email profileImage ratings")
       .populate("project");
 
@@ -86,7 +100,7 @@ export const getAllSelectedProductsByDealer = async (req, res) => {
       .findOne({
         project: projectId,
       })
-      .populate("products")
+      .populate("products.product")
       .populate("user", "name email profileImage ratings")
       .populate("project");
 
@@ -96,5 +110,56 @@ export const getAllSelectedProductsByDealer = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// Update Selected Product Quantity
+export const updateSelectedProductQuantity = async (req, res) => {
+  try {
+    const { projectId, productId } = req.params;
+    const { quantity } = req.body;
+
+    if (!quantity || quantity < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Quantity must be at least 1",
+      });
+    }
+
+    const selectedProducts = await selectedProductsModel.findOne({
+      project: projectId,
+    });
+
+    if (!selectedProducts) {
+      return res.status(404).json({
+        success: false,
+        message: "Selected products not found",
+      });
+    }
+
+    const productIndex = selectedProducts.products.findIndex(
+      (item) => item.product.toString() === productId
+    );
+
+    if (productIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found in selected list",
+      });
+    }
+
+    selectedProducts.products[productIndex].quantity = quantity;
+    await selectedProducts.save();
+
+    await selectedProducts.populate("products.product");
+
+    res.status(200).json({
+      success: true,
+      message: "Quantity updated successfully",
+      products: selectedProducts,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
