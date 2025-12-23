@@ -33,6 +33,30 @@ const productSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    category: {
+      type: String,
+      trim: true,
+    },
+    seriesName: {
+      type: String,
+      trim: true,
+    },
+    cost: {
+      type: Number,
+      default: 0,
+    },
+    margin: {
+      type: Number,
+      default: 0,
+    },
+    marginLocked: {
+      type: Boolean,
+      default: false,
+    },
+    sellingPrice: {
+      type: Number,
+      default: 0,
+    },
     variations: [
       {
         type: { type: String },

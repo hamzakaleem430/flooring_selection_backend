@@ -695,3 +695,107 @@ export const getUserProductByQRCode = async (req, res) => {
 //     });
 //   }
 // };
+
+// Bulk apply margin to products
+export const bulkApplyMargin = async (req, res) => {
+  try {
+    const { margin, productIds } = req.body;
+
+    if (margin === undefined || margin === null) {
+      return res.status(400).json({
+        success: false,
+        message: "Margin value is required.",
+      });
+    }
+
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Product IDs array is required.",
+      });
+    }
+
+    // Find products that are not locked
+    const products = await productModel.find({
+      _id: { $in: productIds },
+      marginLocked: { $ne: true }
+    });
+
+    if (products.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No unlocked products found to update.",
+      });
+    }
+
+    // Update margin and calculate selling price for unlocked products
+    const updatePromises = products.map(async (product) => {
+      const cost = product.cost || 0;
+      const sellingPrice = cost + (cost * margin / 100);
+      
+      return productModel.findByIdAndUpdate(
+        product._id,
+        { 
+          margin,
+          sellingPrice 
+        },
+        { new: true }
+      );
+    });
+
+    const updatedProducts = await Promise.all(updatePromises);
+
+    return res.status(200).json({
+      success: true,
+      message: `Margin applied to ${updatedProducts.length} products successfully.`,
+      updatedCount: updatedProducts.length,
+      lockedCount: productIds.length - updatedProducts.length,
+    });
+  } catch (error) {
+    console.error("Error applying bulk margin:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error applying margin, please try again later.",
+      error: error.message,
+    });
+  }
+};
+
+// Lock/unlock margin for products
+export const toggleMarginLock = async (req, res) => {
+  try {
+    const { productIds, locked } = req.body;
+
+    if (locked === undefined || locked === null) {
+      return res.status(400).json({
+        success: false,
+        message: "Lock status (locked) is required.",
+      });
+    }
+
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Product IDs array is required.",
+      });
+    }
+
+    const result = await productModel.updateMany(
+      { _id: { $in: productIds } },
+      { marginLocked: locked }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Margin ${locked ? 'locked' : 'unlocked'} for ${result.modifiedCount} products.`,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error toggling margin lock:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error toggling margin lock, please try again later.",
+      error: error.message,
+    });
+  }
+};

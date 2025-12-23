@@ -10,6 +10,8 @@ import {
   getProductDetail,
   getUserProductByQRCode,
   updateProduct,
+  bulkApplyMargin,
+  toggleMarginLock,
 } from "../controllers/productController.js";
 
 const router = express.Router();
@@ -40,6 +42,12 @@ router.get("/qrcode", getProductByQRCode);
 
 // Get User Product by Scanned QR Code
 router.get("/scan/qrcode", getUserProductByQRCode);
+
+// Bulk apply margin
+router.post("/bulk-apply-margin", isAuthenticated, bulkApplyMargin);
+
+// Toggle margin lock
+router.post("/toggle-margin-lock", isAuthenticated, toggleMarginLock);
 
 // Get Complete Coordinates
 // router.get("/getCompleteCoordinates", getCompleteCoordinates);
