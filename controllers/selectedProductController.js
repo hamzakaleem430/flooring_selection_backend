@@ -256,7 +256,7 @@ export const removeSelectedProduct = async (req, res) => {
   try {
     const { projectId, productId } = req.params;
 
-    const selectedProducts = await selectedProductsModel.findOne({
+    let selectedProducts = await selectedProductsModel.findOne({
       project: projectId,
     });
 
@@ -267,13 +267,36 @@ export const removeSelectedProduct = async (req, res) => {
       });
     }
 
-    // Remove the product from the array
+    // Handle backward compatibility first
+    if (selectedProducts.products && selectedProducts.products.length > 0) {
+      const firstProduct = selectedProducts.products[0];
+      
+      // Old format: products is array of ObjectIds (no nested 'product' field)
+      if (!firstProduct.product && !firstProduct.quantity) {
+        console.log('Migrating old format before removing product...');
+        // Migrate to new format
+        const oldProducts = selectedProducts.products;
+        selectedProducts.products = oldProducts.map(prodId => ({
+          product: prodId,
+          quantity: 1
+        }));
+        await selectedProducts.save();
+      }
+    }
+
+    // Remove the product from the array (with null check)
     selectedProducts.products = selectedProducts.products.filter(
-      (item) => item.product.toString() !== productId
+      (item) => item && item.product && item.product.toString() !== productId
     );
 
     await selectedProducts.save();
-    await selectedProducts.populate("products.product");
+
+    // Re-fetch with proper population
+    selectedProducts = await selectedProductsModel
+      .findById(selectedProducts._id)
+      .populate("products.product")
+      .populate("user", "name email profileImage ratings")
+      .populate("project");
 
     res.status(200).json({
       success: true,
@@ -281,7 +304,7 @@ export const removeSelectedProduct = async (req, res) => {
       products: selectedProducts,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+    console.error("Error in removeSelectedProduct:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
   }
 };
