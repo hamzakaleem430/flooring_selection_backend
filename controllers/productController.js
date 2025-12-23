@@ -56,17 +56,30 @@ export const createProduct = async (req, res) => {
       }
     }
 
-    if (!name || !description || !price) {
-      return res.status(400).json({
-        success: false,
-        message: "Please provide all the required fields.",
-      });
+    // Detailed validation
+    const validationErrors = [];
+    
+    if (!name || name.trim().length < 3) {
+      validationErrors.push("Product name is required (minimum 3 characters)");
     }
-
+    
+    if (!description || description.trim().length < 10) {
+      validationErrors.push("Product description is required (minimum 10 characters)");
+    }
+    
+    if (!price || isNaN(parseFloat(price)) || parseFloat(price) <= 0) {
+      validationErrors.push("Valid product price is required (must be greater than 0)");
+    }
+    
     if (!req.files || req.files.length === 0) {
+      validationErrors.push("At least one product image is required");
+    }
+    
+    if (validationErrors.length > 0) {
       return res.status(400).json({
         success: false,
-        message: "Product image is required.",
+        message: validationErrors.join(". "),
+        errors: validationErrors,
       });
     }
 
@@ -164,11 +177,31 @@ export const createProduct = async (req, res) => {
       product: newProduct,
     });
   } catch (error) {
-    console.log(error);
+    console.error("Error creating product:", error);
+    
+    // Handle Mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed: " + errors.join(", "),
+        errors: errors,
+      });
+    }
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(409).json({
+        success: false,
+        message: `A product with this ${field} already exists.`,
+      });
+    }
+    
     return res.status(500).json({
       success: false,
-      message: "Error creating product, please try again later.",
-      error: error,
+      message: error.message || "Error creating product, please try again later.",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -192,7 +225,15 @@ export const updateProduct = async (req, res) => {
     if (!productId) {
       return res.status(400).json({
         success: false,
-        message: "Product ID is required.",
+        message: "Product ID is required to update a product.",
+      });
+    }
+    
+    // Validate productId format
+    if (!productId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID format.",
       });
     }
 
@@ -433,11 +474,38 @@ export const updateProduct = async (req, res) => {
   } catch (error) {
     console.error("Error updating product:", error);
     console.error("Error stack:", error.stack);
+    
+    // Handle Mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed: " + errors.join(", "),
+        errors: errors,
+      });
+    }
+    
+    // Handle cast errors (invalid ObjectId)
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID provided.",
+      });
+    }
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(409).json({
+        success: false,
+        message: `A product with this ${field} already exists.`,
+      });
+    }
+    
     return res.status(500).json({
       success: false,
-      message: "Error updating product, please try again later.",
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message || "Error updating product, please try again later.",
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };

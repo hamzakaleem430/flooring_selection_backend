@@ -27,29 +27,30 @@ export const register = async (req, res) => {
     //   });
     // }
 
-    if (!name) {
-      return res.status(400).send({
-        success: false,
-        message: "Name is required!",
-      });
+    // Detailed validation with better error messages
+    const validationErrors = [];
+    
+    if (!name || name.trim().length < 2) {
+      validationErrors.push("Name is required (minimum 2 characters)");
     }
 
-    if (!email) {
-      return res.status(400).send({
-        success: false,
-        message: "Email is required!",
-      });
+    if (!email || !email.includes('@')) {
+      validationErrors.push("Valid email address is required");
     }
-    if (!password) {
-      return res.status(400).send({
-        success: false,
-        message: "Password is required!",
-      });
+    
+    if (!password || password.length < 6) {
+      validationErrors.push("Password is required (minimum 6 characters)");
     }
+    
     if (!category) {
+      validationErrors.push("User category is required (dealer/contractor/etc)");
+    }
+    
+    if (validationErrors.length > 0) {
       return res.status(400).send({
         success: false,
-        message: "Category is required!",
+        message: validationErrors.join(". "),
+        errors: validationErrors,
       });
     }
 
@@ -101,11 +102,29 @@ export const register = async (req, res) => {
       activationToken: activationToken.token,
     });
   } catch (error) {
-    console.log(error);
+    console.error("Registration error:", error);
+    
+    // Handle specific error types
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed: " + errors.join(", "),
+        errors: errors,
+      });
+    }
+    
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email already exists.",
+      });
+    }
+    
     res.status(500).json({
       success: false,
-      message: "Error while registering user, please try again later",
-      error: error.message,
+      message: "Unable to register user at this time. Please try again later.",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -192,7 +211,15 @@ export const loginUser = async (req, res) => {
     if (!email || !password) {
       return res.status(400).send({
         success: false,
-        message: "Email & Password in required!",
+        message: "Email and password are required for login.",
+      });
+    }
+    
+    // Basic email format validation
+    if (!email.includes('@')) {
+      return res.status(400).send({
+        success: false,
+        message: "Please provide a valid email address.",
       });
     }
 
@@ -202,25 +229,25 @@ export const loginUser = async (req, res) => {
       email: { $regex: new RegExp(`^${trimmedEmail}$`, 'i') }
     });
     if (!user) {
-      return res.status(400).send({
+      return res.status(401).send({
         success: false,
-        message: "Invalid email & password!",
+        message: "Invalid email or password. Please check your credentials and try again.",
       });
     }
 
-    // Check Bloced User
+    // Check Blocked User
     if (user.status === false) {
-      return res.status(400).send({
+      return res.status(403).send({
         success: false,
-        message: "User is blocked please contact support@syncai.com",
+        message: "Your account has been blocked. Please contact support@syncai.com for assistance.",
       });
     }
 
     const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) {
-      return res.status(400).send({
+      return res.status(401).send({
         success: false,
-        message: "Invalid Password!",
+        message: "Invalid email or password. Please check your credentials and try again.",
       });
     }
 
@@ -248,11 +275,11 @@ export const loginUser = async (req, res) => {
       token: token,
     });
   } catch (error) {
-    console.log(error);
+    console.error("Login error:", error);
     res.status(500).send({
       success: false,
-      message: "Internal server error, Please try again later!",
-      error,
+      message: "Unable to process login request at this time. Please try again later.",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
