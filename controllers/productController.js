@@ -37,7 +37,7 @@ const uploadQRCodeToS3 = async (qrCodeBuffer, key) => {
 // Create Product
 export const createProduct = async (req, res) => {
   try {
-    const { name, description, price, brand, qr_code, qr_code_image, variationImagesCount } =
+    const { name, description, price, brand, category, seriesName, cost, margin, qr_code, qr_code_image, variationImagesCount } =
       req.body;
 
     const userId = req.user._id;
@@ -134,12 +134,24 @@ export const createProduct = async (req, res) => {
       });
     }
 
+    // Calculate selling price if cost and margin are provided
+    const costValue = cost ? parseFloat(cost) : 0;
+    const marginValue = margin ? parseFloat(margin) : 0;
+    const sellingPrice = (costValue && marginValue) 
+      ? costValue + (costValue * marginValue / 100) 
+      : 0;
+
     const newProduct = await productModel.create({
       user: userId,
       name,
       description,
       price,
       brand,
+      category,
+      seriesName,
+      cost: costValue,
+      margin: marginValue,
+      sellingPrice: sellingPrice,
       variations,
       images: mainProductImages,
       qr_code: qr_code,
@@ -165,7 +177,7 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const productId = req.params.id;
-    const { name, description, price, brand, qrcode, deleteImage, deleteVariationImages, variationImagesCount } = req.body;
+    const { name, description, price, brand, category, seriesName, cost, margin, qrcode, deleteImage, deleteVariationImages, variationImagesCount } = req.body;
 
     console.log("Update Product Request Body:", {
       name,
@@ -385,13 +397,25 @@ export const updateProduct = async (req, res) => {
       });
     }
 
+    // Calculate selling price if cost and margin are provided
+    const costValue = cost !== undefined ? parseFloat(cost) : (product.cost || 0);
+    const marginValue = margin !== undefined ? parseFloat(margin) : (product.margin || 0);
+    const sellingPrice = (costValue && marginValue) 
+      ? costValue + (costValue * marginValue / 100) 
+      : (price ? parseFloat(price) : product.price);
+
     const updatedProduct = await productModel.findByIdAndUpdate(
       productId,
       {
         name: name || product.name,
         description: description || product.description,
-        price: price || product.price,
-        brand: brand || product.brand,
+        price: price !== undefined ? parseFloat(price) : product.price,
+        brand: brand !== undefined ? brand : product.brand,
+        category: category !== undefined ? category : product.category,
+        seriesName: seriesName !== undefined ? seriesName : product.seriesName,
+        cost: costValue,
+        margin: marginValue,
+        sellingPrice: sellingPrice,
         variations: variations || product.variations,
         qrcode: qrcode || product.qrcode,
         images: mainProductImages,
