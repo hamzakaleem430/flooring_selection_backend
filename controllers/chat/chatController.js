@@ -170,44 +170,53 @@ export const createGroupChat = async (req, res) => {
   try {
     const { userId, chatName, avatar, projectId } = req.body;
 
+    console.log('Join/Create project chat request:', { userId, projectId });
+
+    if (!userId || !projectId) {
+      return res.status(400).json({
+        success: false,
+        message: "UserId and ProjectId are required!",
+      });
+    }
+
     const isExisting = await chatModel.findOne({
       projectId: projectId,
       isGroupChat: true,
     });
 
-    if (isExisting) {
-      // Populate the existing chat for consistent response
-      const populatedChat = await chatModel
-        .findById(isExisting._id)
-        .populate("users", "name email profileImage isOnline status")
-        .populate("groupAdmin", "name email profileImage isOnline status");
+    console.log('Existing chat found:', isExisting ? 'Yes' : 'No');
 
-      if (isExisting.users.includes(userId)) {
-        // User is already in the chat, just return it
-        return res.status(200).json({
-          success: true,
-          message: "Chat already exists",
-          _id: populatedChat._id,
-          groupChat: populatedChat,
-        });
+    if (isExisting) {
+      // Check if user is already in the chat
+      const userIdStr = userId.toString();
+      const isUserInChat = isExisting.users.some(
+        (u) => u.toString() === userIdStr
+      );
+
+      console.log('User already in chat:', isUserInChat);
+
+      if (!isUserInChat) {
+        // Add user to the existing group chat
+        isExisting.users.push(userId);
+        await isExisting.save();
+        console.log('User added to chat');
       }
 
-      // Add user to the existing group chat
-      isExisting.users.push(userId);
-      await isExisting.save();
-
-      const updatedChat = await chatModel
+      // Populate and return the chat
+      const populatedChat = await chatModel
         .findById(isExisting._id)
         .populate("users", "name email profileImage isOnline status")
         .populate("groupAdmin", "name email profileImage isOnline status");
 
       return res.status(200).json({
         success: true,
-        message: "User added to the existing group chat successfully!",
-        _id: updatedChat._id,
-        groupChat: updatedChat,
+        message: isUserInChat ? "Chat already exists" : "User added to the group chat",
+        _id: populatedChat._id,
+        groupChat: populatedChat,
       });
     }
+
+    console.log('No chat found, creating new one');
 
     const project = await projectModel.findById(projectId);
 
@@ -232,6 +241,8 @@ export const createGroupChat = async (req, res) => {
       .populate("users", "name email profileImage isOnline status")
       .populate("groupAdmin", "name email profileImage isOnline status");
 
+    console.log('New chat created:', fullGroupChat._id);
+
     res.status(200).send({
       success: true,
       message: "Group chat created successfully!",
@@ -239,11 +250,47 @@ export const createGroupChat = async (req, res) => {
       groupChat: fullGroupChat,
     });
   } catch (error) {
-    console.log(error);
+    console.error('Error in createGroupChat:', error);
     res.status(500).send({
       success: false,
       message: "Error occur while create group chat, please try again!",
-      error: error,
+      error: error.message || error,
+    });
+  }
+};
+
+// Get chat by project ID
+export const getChatByProjectId = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    const chat = await chatModel
+      .findOne({
+        projectId: projectId,
+        isGroupChat: true,
+      })
+      .populate("users", "name email profileImage isOnline status")
+      .populate("groupAdmin", "name email profileImage isOnline status");
+
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        message: "Chat not found for this project",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Chat found",
+      _id: chat._id,
+      chat: chat,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send({
+      success: false,
+      message: "Error fetching chat",
+      error: error.message || error,
     });
   }
 };

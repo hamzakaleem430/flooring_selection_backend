@@ -5,6 +5,7 @@ import {
   fetchAllChats,
   fetchChats,
   createGroupChat,
+  getChatByProjectId,
 } from "../../controllers/chat/chatController.js";
 import { isAuthenticated } from "../../middleware/authMiddleware.js";
 
@@ -15,6 +16,9 @@ router.post("/create", isAuthenticated, createChat);
 
 // Create Group Chat
 router.post("/group/create", isAuthenticated, createGroupChat);
+
+// Get chat by project ID
+router.get("/project/:projectId", getChatByProjectId);
 
 // Fetch Chat
 router.get("/fetch/:id", fetchChats);
