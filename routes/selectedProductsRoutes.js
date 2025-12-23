@@ -5,6 +5,7 @@ import {
   getAllSelectedProductsByDealer,
   getAllSelectedProductsByUser,
   updateSelectedProductQuantity,
+  removeSelectedProduct,
 } from "../controllers/selectedProductController.js";
 
 const router = express.Router();
@@ -20,5 +21,8 @@ router.get("/dealer/:id", getAllSelectedProductsByDealer);
 
 // Update Selected Product Quantity
 router.put("/quantity/:projectId/:productId", isAuthenticated, updateSelectedProductQuantity);
+
+// Remove Product from Selected List
+router.delete("/:projectId/:productId", isAuthenticated, removeSelectedProduct);
 
 export default router;

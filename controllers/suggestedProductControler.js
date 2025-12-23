@@ -111,3 +111,27 @@ export const updateSuggestedProductQuantity = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+
+// Delete Suggested Product
+export const deleteSuggestedProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const suggestedProduct = await suggestedProductModal.findByIdAndDelete(id);
+
+    if (!suggestedProduct) {
+      return res.status(404).json({
+        success: false,
+        message: "Suggested product not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Suggested product removed successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};

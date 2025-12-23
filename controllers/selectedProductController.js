@@ -250,3 +250,38 @@ export const updateSelectedProductQuantity = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
+
+// Remove Product from Selected List
+export const removeSelectedProduct = async (req, res) => {
+  try {
+    const { projectId, productId } = req.params;
+
+    const selectedProducts = await selectedProductsModel.findOne({
+      project: projectId,
+    });
+
+    if (!selectedProducts) {
+      return res.status(404).json({
+        success: false,
+        message: "Selected products not found",
+      });
+    }
+
+    // Remove the product from the array
+    selectedProducts.products = selectedProducts.products.filter(
+      (item) => item.product.toString() !== productId
+    );
+
+    await selectedProducts.save();
+    await selectedProducts.populate("products.product");
+
+    res.status(200).json({
+      success: true,
+      message: "Product removed from selected list",
+      products: selectedProducts,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
