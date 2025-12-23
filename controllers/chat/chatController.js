@@ -176,10 +176,19 @@ export const createGroupChat = async (req, res) => {
     });
 
     if (isExisting) {
+      // Populate the existing chat for consistent response
+      const populatedChat = await chatModel
+        .findById(isExisting._id)
+        .populate("users", "name email profileImage isOnline status")
+        .populate("groupAdmin", "name email profileImage isOnline status");
+
       if (isExisting.users.includes(userId)) {
-        return res.status(400).json({
-          success: false,
-          message: "User is already in the group chat!",
+        // User is already in the chat, just return it
+        return res.status(200).json({
+          success: true,
+          message: "Chat already exists",
+          _id: populatedChat._id,
+          groupChat: populatedChat,
         });
       }
 
@@ -187,10 +196,16 @@ export const createGroupChat = async (req, res) => {
       isExisting.users.push(userId);
       await isExisting.save();
 
+      const updatedChat = await chatModel
+        .findById(isExisting._id)
+        .populate("users", "name email profileImage isOnline status")
+        .populate("groupAdmin", "name email profileImage isOnline status");
+
       return res.status(200).json({
         success: true,
         message: "User added to the existing group chat successfully!",
-        isExisting,
+        _id: updatedChat._id,
+        groupChat: updatedChat,
       });
     }
 
@@ -220,6 +235,7 @@ export const createGroupChat = async (req, res) => {
     res.status(200).send({
       success: true,
       message: "Group chat created successfully!",
+      _id: fullGroupChat._id,
       groupChat: fullGroupChat,
     });
   } catch (error) {

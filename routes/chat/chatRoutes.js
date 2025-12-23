@@ -4,6 +4,7 @@ import {
   deleteChat,
   fetchAllChats,
   fetchChats,
+  createGroupChat,
 } from "../../controllers/chat/chatController.js";
 import { isAuthenticated } from "../../middleware/authMiddleware.js";
 
@@ -11,6 +12,9 @@ const router = express.Router();
 
 // Create Chat
 router.post("/create", isAuthenticated, createChat);
+
+// Create Group Chat
+router.post("/group/create", isAuthenticated, createGroupChat);
 
 // Fetch Chat
 router.get("/fetch/:id", fetchChats);
