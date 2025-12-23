@@ -49,6 +49,11 @@ const productSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    profitType: {
+      type: String,
+      enum: ["markup", "margin"],
+      default: "markup",
+    },
     marginLocked: {
       type: Boolean,
       default: false,

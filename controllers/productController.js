@@ -7,6 +7,24 @@ import QRCode from "qrcode";
 import { v4 as uuidv4 } from "uuid";
 import { Upload } from "@aws-sdk/lib-storage";
 
+// Helper function to calculate selling price based on profit type
+const calculateSellingPrice = (cost, marginValue, profitType = "markup") => {
+  if (!cost || !marginValue) return 0;
+  
+  const costValue = parseFloat(cost);
+  const margin = parseFloat(marginValue);
+  
+  if (profitType === "margin") {
+    // Margin formula: sellingPrice = cost / (1 - margin / 100)
+    // Example: $3 cost with 25% margin = $3 / (1 - 0.25) = $3 / 0.75 = $4
+    return costValue / (1 - margin / 100);
+  } else {
+    // Markup formula (default): sellingPrice = cost + (cost * markup / 100)
+    // Example: $3 cost with 10% markup = $3 + $0.30 = $3.30
+    return costValue + (costValue * margin / 100);
+  }
+};
+
 // Upload QR Code Image to S3
 const uploadQRCodeToS3 = async (qrCodeBuffer, key) => {
   try {
@@ -37,7 +55,7 @@ const uploadQRCodeToS3 = async (qrCodeBuffer, key) => {
 // Create Product
 export const createProduct = async (req, res) => {
   try {
-    const { name, description, price, brand, category, seriesName, cost, margin, qr_code, qr_code_image, variationImagesCount } =
+    const { name, description, price, brand, category, seriesName, cost, margin, profitType, qr_code, qr_code_image, variationImagesCount } =
       req.body;
 
     const userId = req.user._id;
@@ -70,7 +88,7 @@ export const createProduct = async (req, res) => {
     if (!price || isNaN(parseFloat(price)) || parseFloat(price) <= 0) {
       validationErrors.push("Valid product price is required (must be greater than 0)");
     }
-    
+
     if (!req.files || req.files.length === 0) {
       validationErrors.push("At least one product image is required");
     }
@@ -150,8 +168,9 @@ export const createProduct = async (req, res) => {
     // Calculate selling price if cost and margin are provided
     const costValue = cost ? parseFloat(cost) : 0;
     const marginValue = margin ? parseFloat(margin) : 0;
+    const profitTypeValue = profitType || "markup";
     const sellingPrice = (costValue && marginValue) 
-      ? costValue + (costValue * marginValue / 100) 
+      ? calculateSellingPrice(costValue, marginValue, profitTypeValue)
       : 0;
 
     const newProduct = await productModel.create({
@@ -164,6 +183,7 @@ export const createProduct = async (req, res) => {
       seriesName,
       cost: costValue,
       margin: marginValue,
+      profitType: profitTypeValue,
       sellingPrice: sellingPrice,
       variations,
       images: mainProductImages,
@@ -210,7 +230,7 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const productId = req.params.id;
-    const { name, description, price, brand, category, seriesName, cost, margin, qrcode, deleteImage, deleteVariationImages, variationImagesCount } = req.body;
+    const { name, description, price, brand, category, seriesName, cost, margin, profitType, qrcode, deleteImage, deleteVariationImages, variationImagesCount } = req.body;
 
     console.log("Update Product Request Body:", {
       name,
@@ -441,8 +461,9 @@ export const updateProduct = async (req, res) => {
     // Calculate selling price if cost and margin are provided
     const costValue = cost !== undefined ? parseFloat(cost) : (product.cost || 0);
     const marginValue = margin !== undefined ? parseFloat(margin) : (product.margin || 0);
+    const profitTypeValue = profitType || product.profitType || "markup";
     const sellingPrice = (costValue && marginValue) 
-      ? costValue + (costValue * marginValue / 100) 
+      ? calculateSellingPrice(costValue, marginValue, profitTypeValue)
       : (price ? parseFloat(price) : product.price);
 
     const updatedProduct = await productModel.findByIdAndUpdate(
@@ -456,6 +477,7 @@ export const updateProduct = async (req, res) => {
         seriesName: seriesName !== undefined ? seriesName : product.seriesName,
         cost: costValue,
         margin: marginValue,
+        profitType: profitTypeValue,
         sellingPrice: sellingPrice,
         variations: variations || product.variations,
         qrcode: qrcode || product.qrcode,
@@ -791,7 +813,7 @@ export const getUserProductByQRCode = async (req, res) => {
 // Bulk apply margin to products
 export const bulkApplyMargin = async (req, res) => {
   try {
-    const { margin, productIds } = req.body;
+    const { margin, productIds, profitType } = req.body;
 
     if (margin === undefined || margin === null) {
       return res.status(400).json({
@@ -806,6 +828,8 @@ export const bulkApplyMargin = async (req, res) => {
         message: "Product IDs array is required.",
       });
     }
+
+    const profitTypeValue = profitType || "markup";
 
     // Find products that are not locked
     const products = await productModel.find({
@@ -823,12 +847,13 @@ export const bulkApplyMargin = async (req, res) => {
     // Update margin and calculate selling price for unlocked products
     const updatePromises = products.map(async (product) => {
       const cost = product.cost || 0;
-      const sellingPrice = cost + (cost * margin / 100);
+      const sellingPrice = calculateSellingPrice(cost, margin, profitTypeValue);
       
       return productModel.findByIdAndUpdate(
         product._id,
         { 
           margin,
+          profitType: profitTypeValue,
           sellingPrice 
         },
         { new: true }
