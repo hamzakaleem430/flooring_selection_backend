@@ -53,10 +53,6 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    sellingPrice: {
-      type: Number,
-      default: 0,
-    },
     variations: [
       {
         type: { type: String },

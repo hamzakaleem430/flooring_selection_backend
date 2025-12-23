@@ -728,16 +728,16 @@ export const bulkApplyMargin = async (req, res) => {
       });
     }
 
-    // Update margin and calculate selling price for unlocked products
+    // Update margin and calculate price (selling price) for unlocked products
     const updatePromises = products.map(async (product) => {
       const cost = product.cost || 0;
-      const sellingPrice = cost + (cost * margin / 100);
+      const price = cost + (cost * margin / 100);
       
       return productModel.findByIdAndUpdate(
         product._id,
         { 
           margin,
-          sellingPrice 
+          price 
         },
         { new: true }
       );
