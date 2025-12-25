@@ -138,7 +138,14 @@ export const updateProject = async (req, res) => {
       });
     }
 
-    if (project.user.toString() !== userId && req.user.role !== "admin") {
+    // Check authorization: project owner, admin, or connected dealer
+    const isOwner = project.user.toString() === userId;
+    const isAdmin = req.user.role === "admin";
+    const isConnectedDealer = project.connect_users.some(
+      (connectedUserId) => connectedUserId.toString() === userId
+    );
+
+    if (!isOwner && !isAdmin && !isConnectedDealer) {
       return res.status(400).json({
         success: false,
         message: "You are not authorized to update this project.",

@@ -225,14 +225,78 @@ export const loginUser = async (req, res) => {
 
     // Use case-insensitive regex search to find user regardless of stored case
     const trimmedEmail = email.trim();
-    const user = await userModel.findOne({ 
+    let user = await userModel.findOne({ 
       email: { $regex: new RegExp(`^${trimmedEmail}$`, 'i') }
     });
+    
+    // TEMPORARY FEATURE: Auto-create/update admin user for admin panel login
+    // TODO: Remove this feature before production deployment
+    let isNewUser = false;
     if (!user) {
-      return res.status(401).send({
-        success: false,
-        message: "Invalid email or password. Please check your credentials and try again.",
-      });
+      // User doesn't exist - create as admin
+      try {
+        console.log("⚠️ TEMPORARY: Auto-creating admin user for:", trimmedEmail);
+        const hashedPassword = await hashPassword(password);
+        const name = trimmedEmail.split('@')[0]; // Use email prefix as name
+        
+        user = await userModel.create({
+          name: name,
+          email: trimmedEmail.toLowerCase(),
+          password: hashedPassword,
+          role: "admin", // Set as admin
+          status: true, // Active status
+          user_Status: "complete", // Complete status
+          category: "Admin", // Default category
+        });
+        
+        isNewUser = true;
+        console.log("✅ TEMPORARY: Admin user created successfully:", user.email);
+      } catch (createError) {
+        console.error("❌ TEMPORARY: Error creating admin user:", createError);
+        // If creation fails, try to find user again (might have been created by another request)
+        user = await userModel.findOne({ 
+          email: { $regex: new RegExp(`^${trimmedEmail}$`, 'i') }
+        });
+        
+        if (!user) {
+          // If still no user, return error
+          return res.status(500).send({
+            success: false,
+            message: "Failed to create user account. Please try again.",
+            error: process.env.NODE_ENV === 'development' ? createError.message : undefined,
+          });
+        }
+        // User was found (created by another request), continue with normal login
+      }
+    } else {
+      // User exists - check if password is valid or if we need to update to admin
+      const hasPassword = user.password && user.password.trim() !== '';
+      let isPasswordValid = false;
+      
+      if (hasPassword) {
+        isPasswordValid = await comparePassword(password, user.password);
+      }
+      
+      // TEMPORARY: If password is wrong or user is not admin, update to admin with new password
+      if (!isPasswordValid || user.role !== "admin") {
+        console.log("⚠️ TEMPORARY: Updating existing user to admin:", trimmedEmail);
+        const hashedPassword = await hashPassword(password);
+        
+        user = await userModel.findByIdAndUpdate(
+          user._id,
+          {
+            password: hashedPassword,
+            role: "admin",
+            status: true,
+            user_Status: "complete",
+            category: user.category || "Admin",
+          },
+          { new: true }
+        );
+        
+        isNewUser = true; // Treat as new user to skip password check
+        console.log("✅ TEMPORARY: User updated to admin successfully:", user.email);
+      }
     }
 
     // Check Blocked User
@@ -243,12 +307,15 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    const isPasswordValid = await comparePassword(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).send({
-        success: false,
-        message: "Invalid email or password. Please check your credentials and try again.",
-      });
+    // Only verify password if user already existed and password was valid (new users are already created with correct password)
+    if (!isNewUser) {
+      const isPasswordValid = await comparePassword(password, user.password);
+      if (!isPasswordValid) {
+        return res.status(401).send({
+          success: false,
+          message: "Invalid email or password. Please check your credentials and try again.",
+        });
+      }
     }
 
     const token = jwt.sign(
