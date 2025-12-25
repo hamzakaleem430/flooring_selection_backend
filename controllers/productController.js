@@ -916,3 +916,42 @@ export const toggleMarginLock = async (req, res) => {
     });
   }
 };
+
+// Toggle product activation (activate/deactivate)
+export const toggleProductActivation = async (req, res) => {
+  try {
+    const { productIds, isActive } = req.body;
+
+    if (isActive === undefined || isActive === null) {
+      return res.status(400).json({
+        success: false,
+        message: "Activation status (isActive) is required.",
+      });
+    }
+
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Product IDs array is required.",
+      });
+    }
+
+    const result = await productModel.updateMany(
+      { _id: { $in: productIds } },
+      { isActive: isActive }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `${result.modifiedCount} product(s) ${isActive ? 'activated' : 'deactivated'} successfully.`,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error toggling product activation:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error toggling product activation, please try again later.",
+      error: error.message,
+    });
+  }
+};

@@ -12,6 +12,7 @@ import {
   updateProduct,
   bulkApplyMargin,
   toggleMarginLock,
+  toggleProductActivation,
 } from "../controllers/productController.js";
 
 const router = express.Router();
@@ -48,6 +49,9 @@ router.post("/bulk-apply-margin", isAuthenticated, bulkApplyMargin);
 
 // Toggle margin lock
 router.post("/toggle-margin-lock", isAuthenticated, toggleMarginLock);
+
+// Toggle product activation
+router.post("/toggle-activation", isAuthenticated, toggleProductActivation);
 
 // Get Complete Coordinates
 // router.get("/getCompleteCoordinates", getCompleteCoordinates);
