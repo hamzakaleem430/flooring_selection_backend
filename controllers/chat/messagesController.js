@@ -1,6 +1,8 @@
 import chatModel from "../../models/chat/chatModel.js";
 import messagesModel from "../../models/chat/messagesModel.js";
 import userModel from "../../models/userModel.js";
+import notificationModel from "../../models/notificationModel.js";
+import projectModel from "../../models/projectModel.js";
 
 // Create Message
 export const sendMessage = async (req, res) => {
@@ -51,6 +53,34 @@ export const sendMessage = async (req, res) => {
 
     chat.latestMessage = message.toObject();
     await chat.save();
+
+    // Create notifications for other users in the chat (dealers)
+    try {
+      const sender = await userModel.findById(req.user._id);
+      const project = chat.projectId ? await projectModel.findById(chat.projectId) : null;
+      
+      for (const userId of chat.users) {
+        if (userId.toString() !== req.user._id.toString()) {
+          const recipient = await userModel.findById(userId);
+          // Only create notification if recipient is a dealer (admin role)
+          if (recipient && recipient.role === 'admin') {
+            await notificationModel.create({
+              user: userId,
+              subject: `New message from ${sender.name}`,
+              context: content ? 
+                (content.length > 100 ? content.substring(0, 100) + '...' : content) : 
+                contentType === 'image' ? 'Sent an image' : 'Sent a message',
+              type: 'chat',
+              redirectLink: project ? `/projects/${project._id}/chat` : `/messages`,
+              status: 'unread',
+            });
+          }
+        }
+      }
+    } catch (notifError) {
+      console.error('Error creating chat notification:', notifError);
+      // Don't fail the message send if notification creation fails
+    }
 
     res.status(200).json({
       success: true,
