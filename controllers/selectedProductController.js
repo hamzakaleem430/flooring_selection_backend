@@ -1,4 +1,5 @@
 import selectedProductsModel from "../models/selectedProductsModel.js";
+import productModel from "../models/productModel.js";
 
 // Create Selected Products
 export const createSelectedProducts = async (req, res) => {
@@ -9,6 +10,18 @@ export const createSelectedProducts = async (req, res) => {
       return res
         .status(400)
         .json({ message: "Please provide all required fields" });
+    }
+
+    // Validate that all products are active
+    const productDocs = await productModel.find({ _id: { $in: products } });
+    const deactivatedProducts = productDocs.filter(p => p.isActive === false);
+    
+    if (deactivatedProducts.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot add deactivated products to selected list. Some products may be out of stock.",
+        deactivatedProducts: deactivatedProducts.map(p => p.name),
+      });
     }
 
     let existingProject = await selectedProductsModel

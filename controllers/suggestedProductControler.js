@@ -1,4 +1,5 @@
 import suggestedProductModal from "../models/suggestedProductModal.js";
+import productModel from "../models/productModel.js";
 
 // Create a new suggested product
 export const createSuggestedProduct = async (req, res) => {
@@ -10,6 +11,18 @@ export const createSuggestedProduct = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Product array is required and should not be empty",
+      });
+    }
+
+    // Validate that all products are active
+    const products = await productModel.find({ _id: { $in: product } });
+    const deactivatedProducts = products.filter(p => p.isActive === false);
+    
+    if (deactivatedProducts.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot suggest deactivated products. Some products may be out of stock.",
+        deactivatedProducts: deactivatedProducts.map(p => p.name),
       });
     }
 
