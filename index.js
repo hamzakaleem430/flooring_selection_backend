@@ -15,6 +15,7 @@ import notificationRoutes from "./routes/notificationRoute.js";
 import productRoutes from "./routes/productRoutes.js";
 import suggestedProductRoutes from "./routes/suggestedProductsRoute.js";
 import selectedProductsRoutes from "./routes/selectedProductsRoutes.js";
+import projectLogRoutes from "./routes/projectLogRoutes.js";
 
 // Config Dotenv
 dotenv.config();
@@ -43,6 +44,7 @@ app.use("/api/v1/notification", notificationRoutes);
 app.use("/api/v1/product", productRoutes);
 app.use("/api/v1/suggestedProducts", suggestedProductRoutes);
 app.use("/api/v1/selectedProducts", selectedProductsRoutes);
+app.use("/api/v1/projectLogs", projectLogRoutes);
 
 // Server
 app.use("/", (req, res) => {

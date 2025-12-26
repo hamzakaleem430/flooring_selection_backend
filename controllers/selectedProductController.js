@@ -1,5 +1,6 @@
 import selectedProductsModel from "../models/selectedProductsModel.js";
 import productModel from "../models/productModel.js";
+import { createProjectLog } from "./projectLogController.js";
 
 // Create Selected Products
 export const createSelectedProducts = async (req, res) => {
@@ -73,6 +74,18 @@ export const createSelectedProducts = async (req, res) => {
           { project },
           { $push: { products: { $each: productsToAdd } } }
         );
+
+        // Log product additions
+        const productDocs = await productModel.find({ _id: { $in: products } });
+        for (const productDoc of productDocs) {
+          await createProjectLog(
+            project,
+            req.user._id,
+            "product_added_to_selected",
+            `Product "${productDoc.name}" added to selected list`,
+            { productId: productDoc._id, productName: productDoc.name }
+          );
+        }
 
         return res.status(200).json({
           success: true,
@@ -301,12 +314,32 @@ export const removeSelectedProduct = async (req, res) => {
       }
     }
 
+    // Get product name before removing for logging
+    const productToRemove = selectedProducts.products.find(
+      (item) => item && item.product && item.product.toString() === productId
+    );
+    
+    let productName = "Unknown";
+    if (productToRemove) {
+      const productDoc = await productModel.findById(productId);
+      productName = productDoc?.name || "Unknown";
+    }
+
     // Remove the product from the array (with null check)
     selectedProducts.products = selectedProducts.products.filter(
       (item) => item && item.product && item.product.toString() !== productId
     );
 
     await selectedProducts.save();
+
+    // Log product removal
+    await createProjectLog(
+      projectId,
+      req.user._id,
+      "product_removed_from_selected",
+      `Product "${productName}" removed from selected list`,
+      { productId, productName }
+    );
 
     // Re-fetch with proper population
     selectedProducts = await selectedProductsModel

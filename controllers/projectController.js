@@ -6,6 +6,7 @@ import userModel from "../models/userModel.js";
 import mongoose from "mongoose";
 import notificationModel from "../models/notificationModel.js";
 import chatModel from "../models/chat/chatModel.js";
+import { createProjectLog } from "./projectLogController.js";
 dotenv.config();
 
 // Create Project
@@ -76,6 +77,15 @@ export const createProject = async (req, res) => {
       avatar: thumbnails[0],
       projectId: project._id,
     });
+
+    // Log project creation
+    await createProjectLog(
+      project._id,
+      userId,
+      "created",
+      "Project created",
+      { projectName: name }
+    );
 
     res.status(200).send({
       success: true,
@@ -208,6 +218,35 @@ export const updateProject = async (req, res) => {
       },
       { new: true }
     );
+
+    // Log state change
+    if (state && state !== project.state) {
+      await createProjectLog(
+        projectId,
+        userId,
+        "status_changed",
+        `Project status changed from "${project.state}" to "${state}"`,
+        { oldState: project.state, newState: state }
+      );
+    }
+
+    // Log general project updates
+    if (name !== project.name || budget !== project.budget || totalPrice !== project.totalPrice) {
+      const changes = [];
+      if (name && name !== project.name) changes.push("name");
+      if (budget && budget !== project.budget) changes.push("budget");
+      if (totalPrice && totalPrice !== project.totalPrice) changes.push("total price");
+      
+      if (changes.length > 0) {
+        await createProjectLog(
+          projectId,
+          userId,
+          "project_updated",
+          `Project ${changes.join(", ")} updated`,
+          { fields: changes }
+        );
+      }
+    }
 
     res.status(200).send({
       success: true,

@@ -1,5 +1,6 @@
 import suggestedProductModal from "../models/suggestedProductModal.js";
 import productModel from "../models/productModel.js";
+import { createProjectLog } from "./projectLogController.js";
 
 // Create a new suggested product
 export const createSuggestedProduct = async (req, res) => {
@@ -43,6 +44,16 @@ export const createSuggestedProduct = async (req, res) => {
           quantity: quantity || 1,
         });
         suggestedProducts.push(newSuggestedProduct);
+        
+        // Log product suggestion
+        const productData = await productModel.findById(productId);
+        await createProjectLog(
+          project,
+          user,
+          "product_suggested",
+          `Product "${productData?.name || 'Unknown'}" suggested`,
+          { productId, productName: productData?.name, quantity: quantity || 1 }
+        );
       } else {
         // Update quantity if product already exists
         existingProduct.quantity = (existingProduct.quantity || 1) + (quantity || 1);
@@ -130,7 +141,7 @@ export const deleteSuggestedProduct = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const suggestedProduct = await suggestedProductModal.findByIdAndDelete(id);
+    const suggestedProduct = await suggestedProductModal.findById(id).populate("product");
 
     if (!suggestedProduct) {
       return res.status(404).json({
@@ -138,6 +149,17 @@ export const deleteSuggestedProduct = async (req, res) => {
         message: "Suggested product not found",
       });
     }
+
+    // Log product removal
+    await createProjectLog(
+      suggestedProduct.project,
+      req.user._id,
+      "product_removed_from_suggestions",
+      `Product "${suggestedProduct.product?.name || 'Unknown'}" removed from suggestions`,
+      { productId: suggestedProduct.product?._id, productName: suggestedProduct.product?.name }
+    );
+
+    await suggestedProductModal.findByIdAndDelete(id);
 
     res.status(200).json({
       success: true,
