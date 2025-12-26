@@ -4,7 +4,7 @@ import productModel from "../models/productModel.js";
 // Create Selected Products
 export const createSelectedProducts = async (req, res) => {
   try {
-    const { user, products, project, quantity, suggestedPrice } = req.body;
+    const { user, products, project, quantity, suggestedPrice, label } = req.body;
 
     if (!user || !products || !project) {
       return res
@@ -58,13 +58,14 @@ export const createSelectedProducts = async (req, res) => {
         }).filter(id => id !== null)
       );
 
-      // Convert products array to objects with quantity and suggestedPrice
+      // Convert products array to objects with quantity, suggestedPrice, and label
       const productsToAdd = products
         .filter((prodId) => !existingProductIds.has(prodId.toString()))
         .map((prodId) => ({
           product: prodId,
           quantity: quantity || 1,
           suggestedPrice: suggestedPrice || null,
+          label: label || "",
         }));
 
       if (productsToAdd.length > 0) {
@@ -90,6 +91,7 @@ export const createSelectedProducts = async (req, res) => {
         product: prodId,
         quantity: quantity || 1,
         suggestedPrice: suggestedPrice || null,
+        label: label || "",
       }));
 
       await selectedProductsModel.create({ 
@@ -371,6 +373,50 @@ export const updateSelectedProductSuggestedPrice = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in updateSelectedProductSuggestedPrice:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+// Update Selected Product Label
+export const updateSelectedProductLabel = async (req, res) => {
+  try {
+    const { projectId, productId } = req.params;
+    const { label } = req.body;
+
+    const selectedProducts = await selectedProductsModel.findOne({
+      project: projectId,
+    });
+
+    if (!selectedProducts) {
+      return res.status(404).json({
+        success: false,
+        message: "Selected products not found",
+      });
+    }
+
+    const productIndex = selectedProducts.products.findIndex(
+      (item) => item && item.product && item.product.toString() === productId
+    );
+
+    if (productIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found in selected list",
+      });
+    }
+
+    selectedProducts.products[productIndex].label = label || "";
+    await selectedProducts.save();
+
+    await selectedProducts.populate("products.product");
+
+    res.status(200).json({
+      success: true,
+      message: "Label updated successfully",
+      products: selectedProducts,
+    });
+  } catch (error) {
+    console.error("Error in updateSelectedProductLabel:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };

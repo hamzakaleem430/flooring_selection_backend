@@ -24,6 +24,10 @@ const suggestedProductModalSchema = new Schema(
       type: Number,
       default: null,
     },
+    label: {
+      type: String,
+      default: "",
+    },
   },
   { timestamps: true }
 );

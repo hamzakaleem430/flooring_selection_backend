@@ -21,6 +21,10 @@ const selectedProductsSchema = new mongoose.Schema(
           type: Number,
           default: null,
         },
+        label: {
+          type: String,
+          default: "",
+        },
       },
     ],
     project: {

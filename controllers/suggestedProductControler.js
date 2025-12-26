@@ -187,3 +187,35 @@ export const updateSuggestedPrice = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+
+// Update Suggested Product Label
+export const updateSuggestedLabel = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { label } = req.body;
+
+    const suggestedProduct = await suggestedProductModal
+      .findByIdAndUpdate(
+        id,
+        { label: label || "" },
+        { new: true }
+      )
+      .populate("product");
+
+    if (!suggestedProduct) {
+      return res.status(404).json({
+        success: false,
+        message: "Suggested product not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Label updated successfully",
+      data: suggestedProduct,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};

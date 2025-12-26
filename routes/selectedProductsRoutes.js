@@ -7,6 +7,7 @@ import {
   updateSelectedProductQuantity,
   removeSelectedProduct,
   updateSelectedProductSuggestedPrice,
+  updateSelectedProductLabel,
 } from "../controllers/selectedProductController.js";
 
 const router = express.Router();
@@ -25,6 +26,9 @@ router.put("/quantity/:projectId/:productId", isAuthenticated, updateSelectedPro
 
 // Update Selected Product Suggested Price
 router.put("/price/:projectId/:productId", isAuthenticated, updateSelectedProductSuggestedPrice);
+
+// Update Selected Product Label
+router.put("/label/:projectId/:productId", isAuthenticated, updateSelectedProductLabel);
 
 // Remove Product from Selected List
 router.delete("/:projectId/:productId", isAuthenticated, removeSelectedProduct);
