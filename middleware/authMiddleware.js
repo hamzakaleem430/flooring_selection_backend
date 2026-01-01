@@ -2,37 +2,60 @@ import jwt from "jsonwebtoken";
 import userModel from "../models/userModel.js";
 
 export const isAuthenticated = async (req, res, next) => {
-  const token = req.headers.authorization;
+  try {
+    const token = req.headers.authorization;
 
-  // console.log("access_token", token);
+    // console.log("access_token", token);
 
-  if (!token) {
-    return res.status(401).send({
+    if (!token) {
+      return res.status(401).send({
+        success: false,
+        message: "JWT Token must be provided!",
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (!decoded) {
+      return res.status(401).send({
+        success: false,
+        message: "Access token is not valid!",
+      });
+    }
+
+    const user = await userModel.findById({ _id: decoded.id });
+
+    if (!user) {
+      return res.status(401).send({
+        success: false,
+        message: "User not found!",
+      });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error("Authentication error:", error);
+    
+    // Handle JWT-specific errors
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication token has expired. Please log in again.",
+      });
+    } else if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid authentication token.",
+      });
+    }
+    
+    // Handle other errors
+    return res.status(401).json({
       success: false,
-      message: "JWT Token must be provided!",
+      message: "Authentication failed.",
     });
   }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-  if (!decoded) {
-    return res.status(401).send({
-      success: false,
-      message: "Access token is not valid!",
-    });
-  }
-
-  const user = await userModel.findById({ _id: decoded.id });
-
-  if (!user) {
-    return res.status(401).send({
-      success: false,
-      message: "User not found!",
-    });
-  }
-
-  req.user = user;
-  next();
 };
 
 // is Admin
