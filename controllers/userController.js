@@ -239,7 +239,7 @@ export const loginUser = async (req, res) => {
     if (user.status === false) {
       return res.status(403).send({
         success: false,
-        message: "Your account has been blocked. Please contact support@syncai.com for assistance.",
+        message: "Your account has been blocked. Please contact support@simplesyncai.com for assistance.",
       });
     }
 

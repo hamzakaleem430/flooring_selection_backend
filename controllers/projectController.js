@@ -16,14 +16,8 @@ export const createProject = async (req, res) => {
     const {
       name,
       budget,
-      totalPrice,
-      dealer_quoted_price,
-      price_difference,
-      variance_budget,
-      quality,
-      category,
       total_area,
-      sum_area,
+      category,
     } = req.body;
 
     if (!req.files || req.files.length === 0) {
@@ -34,11 +28,11 @@ export const createProject = async (req, res) => {
     }
     const thumbnails = req.files.map((file) => file.location);
 
-    // Verification
-    if (!name || !budget || !totalPrice || !price_difference || !quality) {
+    // Verification - only require essential fields
+    if (!name || !budget) {
       return res.status(400).json({
         success: false,
-        message: "Please fill in all fields.",
+        message: "Please fill in all required fields (name and budget).",
       });
     }
     if (budget < 0) {
@@ -47,25 +41,19 @@ export const createProject = async (req, res) => {
         message: "Budget must be greater than 0.",
       });
     }
-    if (totalPrice < 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Total Price must be greater than 0.",
-      });
-    }
 
     const project = await projectModel.create({
       user: userId,
       name,
       budget,
-      totalPrice,
-      dealer_quoted_price,
-      price_difference,
-      variance_budget,
-      quality,
-      category,
-      total_area,
-      sum_area,
+      totalPrice: "0",
+      dealer_quoted_price: "0",
+      price_difference: "0",
+      variance_budget: "0",
+      quality: "",
+      total_area: total_area || "0",
+      sum_area: "",
+      category: category || "",
       thumbnails,
       connect_users: [userId],
     });
@@ -117,12 +105,12 @@ export const updateProject = async (req, res) => {
       price_difference,
       variance_budget,
       quality,
-      category,
       total_area,
       status,
       sum_area,
       deletedImages,
       state,
+      category,
     } = req.body;
 
     let deleteImages = [];
@@ -213,9 +201,9 @@ export const updateProject = async (req, res) => {
         price_difference: price_difference || project.price_difference,
         variance_budget: variance_budget || project.variance_budget,
         quality: quality || project.quality,
-        category: category || project.category,
         total_area: total_area || project.total_area,
         sum_area: sum_area || project.sum_area,
+        category: category || project.category,
         thumbnails: updatedThumbnails,
         status: status || project.status,
         state: state || project.state,
