@@ -1,8 +1,18 @@
 import { Server as SocketIOServer } from "socket.io";
 import userModel from "./models/userModel.js";
 
+// Export io instance globally so it can be used in controllers
+let io;
+
+export const getIO = () => {
+  if (!io) {
+    throw new Error("Socket.io not initialized!");
+  }
+  return io;
+};
+
 export const initialSocketServer = async (server) => {
-  const io = new SocketIOServer(server, {
+  io = new SocketIOServer(server, {
     cors: {
       origin: "*", // Configure with specific frontend URL in production
       methods: ["GET", "POST"]
@@ -70,6 +80,12 @@ export const initialSocketServer = async (server) => {
     socket.on("stopTyping", (room) => {
       console.log(`User ${userID} stopped typing in room: ${room}`);
       socket.in(room).emit("stopTyping", { userID });
+    });
+
+    // ---------------Join Notification Room for User------------>
+    socket.on("joinNotificationRoom", (userId) => {
+      socket.join(`notification_${userId}`);
+      console.log(`User ${userId} joined notification room`);
     });
 
     // -------------------------Handle disconnect User----------------->

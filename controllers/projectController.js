@@ -7,6 +7,7 @@ import mongoose from "mongoose";
 import notificationModel from "../models/notificationModel.js";
 import chatModel from "../models/chat/chatModel.js";
 import { createProjectLog } from "./projectLogController.js";
+import { sendProjectStatusNotification } from "../helper/notificationHelper.js";
 dotenv.config();
 
 // Create Project
@@ -220,6 +221,31 @@ export const updateProject = async (req, res) => {
         `Project status changed from "${project.state}" to "${state}"`,
         { oldState: project.state, newState: state }
       );
+
+      // Send notifications to all connected users (dealers, contractors, etc.)
+      try {
+        const currentUser = await userModel.findById(userId);
+        const changedByName = currentUser ? currentUser.name : "User";
+
+        // Get all connected users except the one who made the change
+        const recipientIds = project.connect_users
+          .filter((connectedUserId) => connectedUserId.toString() !== userId.toString())
+          .map((id) => id.toString());
+
+        if (recipientIds.length > 0) {
+          await sendProjectStatusNotification({
+            recipientIds,
+            projectName: project.name,
+            projectId: project._id.toString(),
+            status: state,
+            changedBy: changedByName,
+          });
+          console.log(`✅ Notifications sent for project ${project.name} status change to ${state}`);
+        }
+      } catch (notificationError) {
+        console.error("⚠️ Failed to send project status notifications:", notificationError);
+        // Don't fail the request if notification fails
+      }
     }
 
     // Log general project updates

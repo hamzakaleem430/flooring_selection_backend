@@ -3,37 +3,37 @@ import userModel from "../models/userModel.js";
 
 export const isAuthenticated = async (req, res, next) => {
   try {
-    const token = req.headers.authorization;
+  const token = req.headers.authorization;
 
-    // console.log("access_token", token);
+  // console.log("access_token", token);
 
-    if (!token) {
-      return res.status(401).send({
-        success: false,
-        message: "JWT Token must be provided!",
-      });
-    }
+  if (!token) {
+    return res.status(401).send({
+      success: false,
+      message: "JWT Token must be provided!",
+    });
+  }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (!decoded) {
-      return res.status(401).send({
-        success: false,
-        message: "Access token is not valid!",
-      });
-    }
+  if (!decoded) {
+    return res.status(401).send({
+      success: false,
+      message: "Access token is not valid!",
+    });
+  }
 
-    const user = await userModel.findById({ _id: decoded.id });
+  const user = await userModel.findById({ _id: decoded.id });
 
-    if (!user) {
-      return res.status(401).send({
-        success: false,
-        message: "User not found!",
-      });
-    }
+  if (!user) {
+    return res.status(401).send({
+      success: false,
+      message: "User not found!",
+    });
+  }
 
-    req.user = user;
-    next();
+  req.user = user;
+  next();
   } catch (error) {
     console.error("Authentication error:", error);
     

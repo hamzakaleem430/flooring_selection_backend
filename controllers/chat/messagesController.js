@@ -3,6 +3,7 @@ import messagesModel from "../../models/chat/messagesModel.js";
 import userModel from "../../models/userModel.js";
 import notificationModel from "../../models/notificationModel.js";
 import projectModel from "../../models/projectModel.js";
+import { sendChatNotification } from "../../helper/notificationHelper.js";
 
 // Create Message
 export const sendMessage = async (req, res) => {
@@ -54,7 +55,7 @@ export const sendMessage = async (req, res) => {
     chat.latestMessage = message.toObject();
     await chat.save();
 
-    // Create notifications for other users in the chat (dealers)
+    // Create notifications for other users in the chat with real-time socket updates
     try {
       const sender = await userModel.findById(req.user._id);
       const project = chat.projectId ? await projectModel.findById(chat.projectId) : null;
@@ -62,23 +63,25 @@ export const sendMessage = async (req, res) => {
       for (const userId of chat.users) {
         if (userId.toString() !== req.user._id.toString()) {
           const recipient = await userModel.findById(userId);
-          // Only create notification if recipient is a dealer (admin role)
-          if (recipient && recipient.role === 'admin') {
-            await notificationModel.create({
-              user: userId,
-              subject: `New message from ${sender.name}`,
-              context: content ? 
-                (content.length > 100 ? content.substring(0, 100) + '...' : content) : 
-                contentType === 'image' ? 'Sent an image' : 'Sent a message',
-              type: 'chat',
-              redirectLink: project ? `/projects/${project._id}/chat` : `/messages`,
-              status: 'unread',
+          // Send notification to dealers and end users
+          if (recipient) {
+            const messagePreview = content ? 
+              (content.length > 100 ? content.substring(0, 100) + '...' : content) : 
+              contentType === 'image' ? 'Sent an image' : 
+              contentType === 'products' ? 'Sent product(s)' : 'Sent a message';
+
+            await sendChatNotification({
+              recipientId: userId.toString(),
+              senderName: sender.name,
+              message: messagePreview,
+              chatRoomId: chatId,
             });
           }
         }
       }
+      console.log(`✅ Chat notifications sent for message in chat ${chatId}`);
     } catch (notifError) {
-      console.error('Error creating chat notification:', notifError);
+      console.error('⚠️ Error creating chat notification:', notifError);
       // Don't fail the message send if notification creation fails
     }
 
