@@ -73,6 +73,7 @@ export const getAllNotifications = async (req, res) => {
   try {
     const notifications = await notificationModel
       .find()
+      .sort({ createdAt: -1 }) // Newest first
       .populate("user", "name email profileImage");
 
     // { type: "admin" }
@@ -100,6 +101,7 @@ export const getAllHeaderNotifications = async (req, res) => {
         status: "unread",
         type: "admin",
       })
+      .sort({ createdAt: -1 }) // Newest first
       .populate("user", "name email profileImage");
 
     res.status(200).send({
@@ -128,6 +130,7 @@ export const getUserNotifications = async (req, res) => {
         status: "unread",
         type: { $ne: "admin" },
       })
+      .sort({ createdAt: -1 }) // Newest first
       .populate("user", "name email profileImage");
 
     res.status(200).send({
