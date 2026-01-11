@@ -403,7 +403,7 @@ export const sendRequestToUser = async (req, res) => {
       });
     }
 
-    const project = await projectModel.findById(projectId);
+    const project = await projectModel.findById(projectId).populate('user');
 
     if (!project) {
       return res.status(404).json({
@@ -427,34 +427,41 @@ export const sendRequestToUser = async (req, res) => {
       });
     }
 
-    if (user.followRequests.some((req) => req.equals(project._id))) {
-      return res.status(400).json({
-        success: false,
-        message: "Follow request already sent to this user.",
-      });
+    // Automatically connect the user to the project
+    project.connect_users.push(user._id);
+    await project.save();
+
+    // Add user to group chat if it exists
+    const chat = await chatModel.findOne({
+      projectId: projectId,
+      isGroupChat: true,
+    });
+
+    if (chat) {
+      if (!chat.users.includes(userId)) {
+        chat.users.push(userId);
+        await chat.save();
+      }
     }
 
-    user.followRequests.push(project._id);
-    await user.save();
-
-    // Create a notification
-    await notificationModel.create({
-      user: user._id,
-      subject: "New Follow Request",
-      context: `You have received a follow request for the project "${project.name}".`,
-      type: "follow_request",
-      redirectLink: `/projects/${projectId}`,
+    // Send notification to the dealer/contractor using the helper
+    await sendProjectStatusNotification({
+      recipientId: user._id,
+      project: project,
+      subject: "New Project Connection",
+      message: `You have been connected to the project "${project.name}" by ${project.user.name}.`,
+      type: "project_connection",
     });
 
     return res.status(200).json({
       success: true,
-      message: "Follow request sent successfully.",
+      message: "User connected to project successfully.",
     });
   } catch (error) {
     console.log(error);
     res.status(500).json({
       success: false,
-      message: "Failed to send request to user. Please try again.",
+      message: "Failed to connect user to project. Please try again.",
       error: error.message,
     });
   }
