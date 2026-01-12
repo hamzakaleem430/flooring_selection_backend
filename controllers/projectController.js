@@ -333,8 +333,11 @@ export const getProjectDetail = async (req, res) => {
 // Get All Admin's Projects
 export const getAllAdminProjects = async (req, res) => {
   try {
+    const userId = req.user.id;
+
+    // Only return projects where the dealer/admin is in the connect_users array
     const projects = await projectModel
-      .find({})
+      .find({ connect_users: { $in: [userId] } })
       .populate("user", "name email profileImage category experience")
       .populate("connect_users", "name email profileImage category experience");
 

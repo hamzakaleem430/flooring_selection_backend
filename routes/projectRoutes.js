@@ -31,7 +31,7 @@ router.get("/user", isAuthenticated, getAllUserProjects);
 router.get("/project/:id", getProjectDetail);
 
 // All Admin's Projects
-router.get("/admin", getAllAdminProjects);
+router.get("/admin", isAuthenticated, getAllAdminProjects);
 
 // Delete Project
 router.delete("/delete/:id", isAuthenticated, deleteProject);
