@@ -141,18 +141,31 @@ export const updateProject = async (req, res) => {
     }
 
     // Check authorization: project owner, admin, or connected dealer
-    const isOwner = project.user.toString() === userId;
+    console.log('=== UPDATE PROJECT AUTHORIZATION CHECK ===');
+    console.log('User ID:', userId.toString());
+    console.log('Project Owner ID:', project.user.toString());
+    console.log('User Role:', req.user.role);
+    console.log('Connected Users:', project.connect_users.map(id => id.toString()));
+    
+    const isOwner = project.user.toString() === userId.toString();
     const isAdmin = req.user.role === "admin";
     const isConnectedDealer = project.connect_users.some(
-      (connectedUserId) => connectedUserId.toString() === userId
+      (connectedUserId) => connectedUserId.toString() === userId.toString()
     );
 
+    console.log('Is Owner:', isOwner);
+    console.log('Is Admin:', isAdmin);
+    console.log('Is Connected Dealer:', isConnectedDealer);
+
     if (!isOwner && !isAdmin && !isConnectedDealer) {
+      console.log('❌ AUTHORIZATION FAILED');
       return res.status(400).json({
         success: false,
         message: "You are not authorized to update this project.",
       });
     }
+    
+    console.log('✅ AUTHORIZATION PASSED');
 
     // Handle deletion of old thumbnails
     if (deleteImages && deleteImages.length > 0) {
