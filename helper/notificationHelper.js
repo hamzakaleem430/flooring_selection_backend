@@ -70,6 +70,12 @@ export const createBulkNotifications = async ({
   redirectLink,
 }) => {
   try {
+    // Ensure userIds is an array
+    if (!Array.isArray(userIds)) {
+      console.error("userIds must be an array, received:", typeof userIds);
+      throw new Error("userIds must be an array");
+    }
+
     const notifications = [];
 
     for (const userId of userIds) {
@@ -136,6 +142,7 @@ export const sendProjectStatusNotification = async ({
     approved: `Project "${projectName}" has been approved!`,
     rejected: `Project "${projectName}" has been rejected.`,
     pending: `Project "${projectName}" status changed to pending.`,
+    connected: `You have been connected to the project "${projectName}" by ${changedBy}.`,
   };
 
   return await createBulkNotifications({

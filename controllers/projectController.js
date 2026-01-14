@@ -449,11 +449,11 @@ export const sendRequestToUser = async (req, res) => {
 
     // Send notification to the dealer/contractor using the helper
     await sendProjectStatusNotification({
-      recipientId: user._id,
-      project: project,
-      subject: "New Project Connection",
-      message: `You have been connected to the project "${project.name}" by ${project.user.name}.`,
-      type: "project_connection",
+      recipientIds: [user._id.toString()],
+      projectName: project.name,
+      projectId: project._id.toString(),
+      status: "connected",
+      changedBy: project.user.name,
     });
 
     return res.status(200).json({
