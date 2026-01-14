@@ -13,7 +13,7 @@ dotenv.config();
 // Create Project
 export const createProject = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const {
       name,
       budget,
@@ -96,7 +96,7 @@ export const createProject = async (req, res) => {
 // Update Project
 export const updateProject = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const projectId = req.params.id;
     const {
       name,
@@ -284,7 +284,7 @@ export const updateProject = async (req, res) => {
 // Get All User's Projects
 export const getAllUserProjects = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     const projects = await projectModel
       .find({ connect_users: { $in: [userId] } })
@@ -333,7 +333,7 @@ export const getProjectDetail = async (req, res) => {
 // Get All Admin's Projects
 export const getAllAdminProjects = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     // Only return projects where the dealer/admin is in the connect_users array
     const projects = await projectModel
@@ -360,7 +360,7 @@ export const getAllAdminProjects = async (req, res) => {
 export const deleteProject = async (req, res) => {
   try {
     const projectId = req.params.id;
-    const userId = req.user.id;
+    const userId = req.user._id;
     const project = await projectModel.findById(projectId);
 
     if (!project) {
@@ -370,7 +370,7 @@ export const deleteProject = async (req, res) => {
       });
     }
 
-    if (project.user.toString() !== req.user.id && req.user.role !== "admin") {
+    if (project.user.toString() !== req.user._id.toString() && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "You are not authorized to delete this project.",
