@@ -5,8 +5,13 @@ import { createProjectLog } from "./projectLogController.js";
 // Create a new suggested product
 export const createSuggestedProduct = async (req, res) => {
   try {
+    console.log('=== CREATE SUGGESTED PRODUCT ===');
+    console.log('Body:', req.body);
     const { project, product, quantity } = req.body;
     const user = req.user._id;
+    console.log('User ID:', user);
+    console.log('Project:', project);
+    console.log('Products:', product);
 
     if (!Array.isArray(product) || product.length === 0) {
       return res.status(400).json({
@@ -62,6 +67,7 @@ export const createSuggestedProduct = async (req, res) => {
       }
     }
 
+    console.log(`Created ${suggestedProducts.length} suggested products`);
     res.status(201).json({
       success: true,
       message: "Suggested products added successfully",
@@ -76,7 +82,10 @@ export const createSuggestedProduct = async (req, res) => {
 // Get Suggested Products
 export const getSuggestedProducts = async (req, res) => {
   try {
+    console.log('=== GET SUGGESTED PRODUCTS ===');
     const projectId = req.params.id;
+    console.log('Project ID:', projectId);
+    
     const suggestedProducts = await suggestedProductModal
       .find({
         project: projectId,
@@ -84,6 +93,15 @@ export const getSuggestedProducts = async (req, res) => {
       .populate("product")
       .populate("user", "name, email")
       .populate("project", "name");
+
+    console.log(`Found ${suggestedProducts.length} suggested products`);
+    if (suggestedProducts.length > 0) {
+      console.log('Products:', suggestedProducts.map(p => ({
+        id: p._id,
+        productName: p.product?.name,
+        userName: p.user?.name
+      })));
+    }
 
     res.status(200).json({
       success: true,
