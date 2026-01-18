@@ -28,6 +28,11 @@ const suggestedProductModalSchema = new Schema(
       type: String,
       default: "",
     },
+    selectedVariations: {
+      type: Map,
+      of: String,
+      default: {},
+    },
   },
   { timestamps: true }
 );

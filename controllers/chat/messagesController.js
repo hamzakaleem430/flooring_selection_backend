@@ -63,7 +63,7 @@ export const sendMessage = async (req, res) => {
       for (const userId of chat.users) {
         if (userId.toString() !== req.user._id.toString()) {
           const recipient = await userModel.findById(userId);
-          // Send notification to dealers and end users
+          // Send notification to dealers and property owners
           if (recipient) {
             const messagePreview = content ? 
               (content.length > 100 ? content.substring(0, 100) + '...' : content) : 

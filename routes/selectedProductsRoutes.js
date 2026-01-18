@@ -8,6 +8,7 @@ import {
   removeSelectedProduct,
   updateSelectedProductSuggestedPrice,
   updateSelectedProductLabel,
+  updateSelectedProductVariations,
 } from "../controllers/selectedProductController.js";
 
 const router = express.Router();
@@ -29,6 +30,9 @@ router.put("/price/:projectId/:productId", isAuthenticated, updateSelectedProduc
 
 // Update Selected Product Label
 router.put("/label/:projectId/:productId", isAuthenticated, updateSelectedProductLabel);
+
+// Update Selected Product Variations
+router.put("/variations/:projectId/:productId", isAuthenticated, updateSelectedProductVariations);
 
 // Remove Product from Selected List
 router.delete("/:projectId/:productId", isAuthenticated, removeSelectedProduct);

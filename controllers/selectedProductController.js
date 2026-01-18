@@ -5,7 +5,7 @@ import { createProjectLog } from "./projectLogController.js";
 // Create Selected Products
 export const createSelectedProducts = async (req, res) => {
   try {
-    const { user, products, project, quantity, suggestedPrice, label } = req.body;
+    const { user, products, project, quantity, suggestedPrice, label, selectedVariations } = req.body;
 
     if (!user || !products || !project) {
       return res
@@ -59,7 +59,7 @@ export const createSelectedProducts = async (req, res) => {
         }).filter(id => id !== null)
       );
 
-      // Convert products array to objects with quantity, suggestedPrice, and label
+      // Convert products array to objects with quantity, suggestedPrice, label, and selectedVariations
       const productsToAdd = products
         .filter((prodId) => !existingProductIds.has(prodId.toString()))
         .map((prodId) => ({
@@ -67,6 +67,7 @@ export const createSelectedProducts = async (req, res) => {
           quantity: quantity || 1,
           suggestedPrice: suggestedPrice || null,
           label: label || "",
+          selectedVariations: selectedVariations || {},
         }));
 
       if (productsToAdd.length > 0) {
@@ -83,7 +84,7 @@ export const createSelectedProducts = async (req, res) => {
             req.user._id,
             "product_added_to_selected",
             `Product "${productDoc.name}" added to selected list`,
-            { productId: productDoc._id, productName: productDoc.name }
+            { productId: productDoc._id, productName: productDoc.name, selectedVariations }
           );
         }
 
@@ -105,6 +106,7 @@ export const createSelectedProducts = async (req, res) => {
         quantity: quantity || 1,
         suggestedPrice: suggestedPrice || null,
         label: label || "",
+        selectedVariations: selectedVariations || {},
       }));
 
       await selectedProductsModel.create({ 
@@ -450,6 +452,50 @@ export const updateSelectedProductLabel = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in updateSelectedProductLabel:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+// Update Selected Product Variations
+export const updateSelectedProductVariations = async (req, res) => {
+  try {
+    const { projectId, productId } = req.params;
+    const { selectedVariations } = req.body;
+
+    const selectedProducts = await selectedProductsModel.findOne({
+      project: projectId,
+    });
+
+    if (!selectedProducts) {
+      return res.status(404).json({
+        success: false,
+        message: "Selected products not found",
+      });
+    }
+
+    const productIndex = selectedProducts.products.findIndex(
+      (item) => item && item.product && item.product.toString() === productId
+    );
+
+    if (productIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found in selected list",
+      });
+    }
+
+    selectedProducts.products[productIndex].selectedVariations = selectedVariations || {};
+    await selectedProducts.save();
+
+    await selectedProducts.populate("products.product");
+
+    res.status(200).json({
+      success: true,
+      message: "Selected variations updated successfully",
+      products: selectedProducts,
+    });
+  } catch (error) {
+    console.error("Error in updateSelectedProductVariations:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };

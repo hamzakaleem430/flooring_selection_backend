@@ -7,11 +7,12 @@ export const createSuggestedProduct = async (req, res) => {
   try {
     console.log('=== CREATE SUGGESTED PRODUCT ===');
     console.log('Body:', req.body);
-    const { project, product, quantity } = req.body;
+    const { project, product, quantity, selectedVariations } = req.body;
     const user = req.user._id;
     console.log('User ID:', user);
     console.log('Project:', project);
     console.log('Products:', product);
+    console.log('Selected Variations:', selectedVariations);
 
     if (!Array.isArray(product) || product.length === 0) {
       return res.status(400).json({
@@ -47,6 +48,7 @@ export const createSuggestedProduct = async (req, res) => {
           project,
           product: productId,
           quantity: quantity || 1,
+          selectedVariations: selectedVariations || {},
         });
         suggestedProducts.push(newSuggestedProduct);
         
@@ -57,11 +59,14 @@ export const createSuggestedProduct = async (req, res) => {
           user,
           "product_suggested",
           `Product "${productData?.name || 'Unknown'}" suggested`,
-          { productId, productName: productData?.name, quantity: quantity || 1 }
+          { productId, productName: productData?.name, quantity: quantity || 1, selectedVariations }
         );
       } else {
-        // Update quantity if product already exists
+        // Update quantity and variations if product already exists
         existingProduct.quantity = (existingProduct.quantity || 1) + (quantity || 1);
+        if (selectedVariations) {
+          existingProduct.selectedVariations = selectedVariations;
+        }
         await existingProduct.save();
         suggestedProducts.push(existingProduct);
       }
@@ -252,6 +257,38 @@ export const updateSuggestedLabel = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Label updated successfully",
+      data: suggestedProduct,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+// Update Suggested Product Selected Variations
+export const updateSuggestedVariations = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { selectedVariations } = req.body;
+
+    const suggestedProduct = await suggestedProductModal
+      .findByIdAndUpdate(
+        id,
+        { selectedVariations: selectedVariations || {} },
+        { new: true }
+      )
+      .populate("product");
+
+    if (!suggestedProduct) {
+      return res.status(404).json({
+        success: false,
+        message: "Suggested product not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Selected variations updated successfully",
       data: suggestedProduct,
     });
   } catch (error) {

@@ -6,6 +6,7 @@ import {
   deleteSuggestedProduct,
   updateSuggestedPrice,
   updateSuggestedLabel,
+  updateSuggestedVariations,
 } from "../controllers/suggestedProductControler.js";
 import { isAuthenticated } from "../middleware/authMiddleware.js";
 
@@ -20,6 +21,8 @@ router.put("/quantity/:id", isAuthenticated, updateSuggestedProductQuantity);
 router.put("/price/:id", isAuthenticated, updateSuggestedPrice);
 
 router.put("/label/:id", isAuthenticated, updateSuggestedLabel);
+
+router.put("/variations/:id", isAuthenticated, updateSuggestedVariations);
 
 router.delete("/:id", isAuthenticated, deleteSuggestedProduct);
 

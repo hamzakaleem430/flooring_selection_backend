@@ -25,6 +25,11 @@ const selectedProductsSchema = new mongoose.Schema(
           type: String,
           default: "",
         },
+        selectedVariations: {
+          type: Map,
+          of: String,
+          default: {},
+        },
       },
     ],
     project: {
