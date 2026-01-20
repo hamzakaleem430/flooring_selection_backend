@@ -103,21 +103,26 @@ export const createBulkNotifications = async ({
  * @param {String} params.senderName - Sender's name
  * @param {String} params.message - Message preview
  * @param {String} params.chatRoomId - Chat room ID
+ * @param {String} params.projectId - Project ID (optional)
  */
 export const sendChatNotification = async ({
   recipientId,
   senderName,
   message,
   chatRoomId,
+  projectId,
 }) => {
   const messagePreview = message.length > 50 ? message.substring(0, 50) + "..." : message;
+  
+  // Use project chat route if projectId is available, otherwise use messages page
+  const redirectLink = projectId ? `/projects/${projectId}/chat` : `/messages`;
   
   return await createNotificationWithSocket({
     userId: recipientId,
     subject: `New message from ${senderName}`,
     context: messagePreview,
     type: "chat",
-    redirectLink: `/chat/${chatRoomId}`,
+    redirectLink: redirectLink,
   });
 };
 

@@ -75,6 +75,7 @@ export const sendMessage = async (req, res) => {
               senderName: sender.name,
               message: messagePreview,
               chatRoomId: chatId,
+              projectId: project?._id?.toString(),
             });
           }
         }
