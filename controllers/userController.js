@@ -820,7 +820,7 @@ export const addReview = async (req, res) => {
       subject: "📢 New User Review Alert!",
       context: `${req.user.name} has just submitted a new user profile review. 🚀 Check it out now!`,
       type: "user",
-      redirectLink: "/dashboard/products",
+      redirectLink: "/profile",
     };
 
     // // Create notifications for all admins
