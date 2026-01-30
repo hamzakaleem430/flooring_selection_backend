@@ -16,6 +16,7 @@ import productRoutes from "./routes/productRoutes.js";
 import suggestedProductRoutes from "./routes/suggestedProductsRoute.js";
 import selectedProductsRoutes from "./routes/selectedProductsRoutes.js";
 import projectLogRoutes from "./routes/projectLogRoutes.js";
+import recommendationRoutes from "./routes/recommendationRoutes.js";
 
 // Config Dotenv
 dotenv.config();
@@ -45,6 +46,7 @@ app.use("/api/v1/product", productRoutes);
 app.use("/api/v1/suggestedProducts", suggestedProductRoutes);
 app.use("/api/v1/selectedProducts", selectedProductsRoutes);
 app.use("/api/v1/projectLogs", projectLogRoutes);
+app.use("/api/v1/recommendations", recommendationRoutes);
 
 // Server
 app.use("/", (req, res) => {
