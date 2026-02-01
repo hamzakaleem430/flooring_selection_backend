@@ -362,10 +362,11 @@ Instead of asking questions first, make reasonable assumptions:
 
 
 // Initialize LangChain Chat Model
+const apiKey = process.env.OPEN_AI_API_KEY || process.env.OPENAI_API_KEY;
 const langchainModel = new ChatOpenAI({
   modelName: "gpt-4o",
   temperature: 0.7,
-  openAIApiKey: process.env.OPEN_AI_API_KEY || process.env.OPENAI_API_KEY,
+  apiKey: apiKey,
 });
 
 // Create LangChain tools for product search
@@ -529,6 +530,211 @@ const productBrandTool = new DynamicStructuredTool({
 
 // Array of available tools
 const tools = [productSearchTool, productCategoryTool, productBrandTool];
+
+// LangGraph Workflow for Product Recommendations
+// Using a simple state object approach for compatibility
+const createRecommendationGraph = () => {
+  // Node 1: Analyze User Requirements
+  const analyzeRequirements = async (state) => {
+    const { userMessage, conversationContext } = state;
+    
+    const analysisPrompt = `Analyze the following user request and extract key requirements for product recommendations.
+
+User Message: ${userMessage}
+${conversationContext ? `Context: ${conversationContext}` : ''}
+
+Extract and return a JSON object with:
+- category: flooring type mentioned (vinyl, laminate, hardwood, tile, carpet, or null)
+- brand: any brand names mentioned (or null)
+- budget: price range if mentioned (min/max or null)
+- roomType: type of room (bedroom, kitchen, living room, bathroom, etc. or null)
+- preferences: array of key requirements (e.g., ["waterproof", "pet-friendly", "durable"])
+
+Return ONLY valid JSON, no other text.`;
+
+    const model = new ChatOpenAI({
+      modelName: "gpt-4o-mini",
+      temperature: 0.3,
+      apiKey: apiKey,
+    });
+
+    const response = await model.invoke([{ role: "user", content: analysisPrompt }]);
+    
+    try {
+      const requirements = JSON.parse(response.content);
+      return {
+        requirements: {
+          category: requirements.category || null,
+          brand: requirements.brand || null,
+          budget: requirements.budget || null,
+          roomType: requirements.roomType || null,
+          preferences: requirements.preferences || [],
+        },
+      };
+    } catch (error) {
+      console.error("Error parsing requirements:", error);
+      return { requirements: {} };
+    }
+  };
+
+  // Node 2: Search Products Based on Requirements
+  const searchProductsNode = async (state) => {
+    const { requirements } = state;
+      const allProducts = [];
+
+      try {
+        // Search by category if specified
+        if (requirements?.category) {
+          const categoryProducts = await getProductsByCategory(requirements.category, 10);
+          allProducts.push(...categoryProducts);
+        }
+
+        // Search by brand if specified
+        if (requirements?.brand) {
+          const brandProducts = await getProductsByBrand(requirements.brand, 10);
+          allProducts.push(...brandProducts);
+        }
+
+        // General search if no specific category/brand
+        if (!requirements?.category && !requirements?.brand) {
+          const searchKeyword = requirements?.preferences?.join(" ") || "";
+          const generalProducts = await searchProducts({
+            keyword: searchKeyword,
+            limit: 15,
+          });
+          allProducts.push(...generalProducts);
+        }
+
+        // Remove duplicates based on product ID
+        const uniqueProducts = Array.from(
+          new Map(allProducts.map((p) => [p._id.toString(), p])).values()
+        );
+
+        // Format products
+        const formattedProducts = uniqueProducts.slice(0, 10).map((product) => ({
+          id: product._id.toString(),
+          name: product.name,
+          description: product.description,
+          price: product.price,
+          sellingPrice: product.sellingPrice || product.price,
+          brand: product.brand || "Unknown",
+          category: product.category || "Uncategorized",
+          seriesName: product.seriesName || null,
+          images: product.images || [],
+          variations: product.variations || [],
+          qrCode: product.qr_code || null,
+        }));
+
+        return { searchedProducts: formattedProducts };
+    } catch (error) {
+      console.error("Error searching products:", error);
+      return { searchedProducts: [] };
+    }
+  };
+
+  // Node 3: Generate AI Recommendations with Products
+  const generateRecommendations = async (state) => {
+    const { userMessage, conversationContext, requirements, searchedProducts } = state;
+      const productsContext = searchedProducts && searchedProducts.length > 0
+        ? `\n\n## Available Products from Database:\n${JSON.stringify(searchedProducts.slice(0, 8), null, 2)}`
+        : "\n\n## Note: No products found in database. Provide general recommendations.";
+
+      const recommendationPrompt = `You are an expert interior designer. Based on the user's requirements and available products, provide comprehensive recommendations.
+
+User Requirements:
+- Category: ${requirements?.category || "Not specified"}
+- Brand: ${requirements?.brand || "Not specified"}
+- Room Type: ${requirements?.roomType || "Not specified"}
+- Preferences: ${requirements?.preferences?.join(", ") || "None specified"}
+${conversationContext ? `\nConversation Context: ${conversationContext}` : ""}
+
+User Message: ${userMessage}
+${productsContext}
+
+Provide a detailed recommendation that:
+1. Analyzes the user's needs
+2. Recommends 2-4 flooring options (use products from database if available)
+3. Explains why each option fits
+4. Includes product details (name, brand, price) from the database
+5. Provides design suggestions
+
+Format your response in markdown with clear sections.`;
+
+      const model = new ChatOpenAI({
+        modelName: "gpt-4o",
+        temperature: 0.7,
+        apiKey: apiKey,
+      });
+
+    const response = await model.invoke([{ role: "user", content: recommendationPrompt }]);
+    
+    return { aiAnalysis: response.content };
+  };
+
+  // Node 4: Finalize Response with High-Level Results
+  const finalizeResponse = async (state) => {
+    const { aiAnalysis, searchedProducts, requirements } = state;
+
+    const topProducts = searchedProducts?.slice(0, 5) || [];
+    const summary = {
+      category: requirements?.category || "General",
+      roomType: requirements?.roomType || "Not specified",
+      productCount: topProducts.length,
+      priceRange: topProducts.length > 0
+        ? {
+            min: Math.min(...topProducts.map((p) => p.price)),
+            max: Math.max(...topProducts.map((p) => p.price)),
+          }
+        : null,
+    };
+
+    return {
+      finalResponse: aiAnalysis,
+      recommendedProducts: topProducts,
+      summary: summary,
+    };
+  };
+
+  // Build the graph with simple state object
+  const workflow = new StateGraph({
+    channels: {
+      userMessage: { reducer: (x, y) => y ?? x },
+      conversationContext: { reducer: (x, y) => y ?? x },
+      requirements: { reducer: (x, y) => y ?? x },
+      searchedProducts: { reducer: (x, y) => y ?? x },
+      aiAnalysis: { reducer: (x, y) => y ?? x },
+      finalResponse: { reducer: (x, y) => y ?? x },
+      recommendedProducts: { reducer: (x, y) => y ?? x },
+      summary: { reducer: (x, y) => y ?? x },
+    },
+  })
+    .addNode("analyze_requirements", analyzeRequirements)
+    .addNode("search_products", searchProductsNode)
+    .addNode("generate_recommendations", generateRecommendations)
+    .addNode("finalize_response", finalizeResponse)
+    .addEdge("analyze_requirements", "search_products")
+    .addEdge("search_products", "generate_recommendations")
+    .addEdge("generate_recommendations", "finalize_response")
+    .addEdge("finalize_response", END)
+    .setEntryPoint("analyze_requirements");
+
+  return workflow.compile();
+};
+
+// Run the LangGraph workflow
+const runProductRecommendationWorkflow = async (userMessage, conversationContext = null) => {
+  try {
+    const graph = createRecommendationGraph();
+    const result = await graph.invoke({
+      userMessage,
+      conversationContext: conversationContext || "",
+    });
+    return result;
+  } catch (error) {
+    console.error("Error in recommendation workflow:", error);
+    throw error;
+  }
+};
 
 // Helper function to create prompt based on type and context
 const createPrompt = (currentInput, summarizedContext, type) => {
@@ -797,113 +1003,74 @@ NEVER respond with only questions. Always provide tile recommendations first.`,
       }
     }
 
-    // Use LangChain with tools for product recommendations
+    // Use LangGraph workflow for product recommendations
     let assistantResponse;
     let recommendedProducts = [];
+    let workflowSummary = null;
 
     try {
-      // Bind tools to the model
-      const modelWithTools = langchainModel.bindTools(tools);
+      // Run LangGraph workflow to get product recommendations
+      const workflowResult = await runProductRecommendationWorkflow(
+        message,
+        summarizedContext || null
+      );
 
-      // Convert messages to LangChain format (skip system messages, LangChain handles them differently)
-      const langchainMessages = [];
-      for (const msg of apiMessages) {
-        if (msg.role === "system") {
-          // System messages are handled separately in LangChain
-          continue;
-        } else if (msg.role === "user") {
-          if (Array.isArray(msg.content)) {
-            // Handle image content - LangChain format
+      assistantResponse = workflowResult.finalResponse;
+      recommendedProducts = workflowResult.recommendedProducts || [];
+      workflowSummary = workflowResult.summary;
+
+      // If workflow didn't return products, try fallback with tools
+      if (recommendedProducts.length === 0) {
+        console.log("No products from workflow, trying tool-based search...");
+        
+        // Fallback: Use LangChain tools directly
+        const langchainMessages = [];
+        for (const msg of apiMessages) {
+          if (msg.role === "system") continue;
+          if (msg.role === "user") {
             langchainMessages.push({
               role: "user",
-              content: msg.content,
+              content: Array.isArray(msg.content) ? msg.content : msg.content,
             });
-          } else {
+          } else if (msg.role === "assistant") {
             langchainMessages.push({
-              role: "user",
+              role: "assistant",
               content: msg.content,
             });
           }
-        } else if (msg.role === "assistant") {
-          langchainMessages.push({
-            role: "assistant",
-            content: msg.content,
+        }
+
+        const systemMessage = apiMessages.find((m) => m.role === "system");
+        if (systemMessage) {
+          langchainMessages.unshift({
+            role: "system",
+            content: systemMessage.content,
           });
         }
-      }
 
-      // Add system message to the beginning
-      const systemMessage = apiMessages.find((m) => m.role === "system");
-      if (systemMessage) {
-        langchainMessages.unshift({
-          role: "system",
-          content: systemMessage.content,
-        });
-      }
+        const modelWithTools = langchainModel.bindTools(tools);
+        const response = await modelWithTools.invoke(langchainMessages);
 
-      // Bind tools to the model
-      const modelWithTools = langchainModel.bindTools(tools);
-
-      // Invoke the model with tools
-      const response = await modelWithTools.invoke(langchainMessages);
-
-      // Check if the model wants to call tools
-      if (response.tool_calls && response.tool_calls.length > 0) {
-        // Execute tool calls
-        const toolResults = [];
-        for (const toolCall of response.tool_calls) {
-          const tool = tools.find((t) => t.name === toolCall.name);
-          if (tool) {
-            try {
-              const result = await tool.invoke(toolCall.args);
-              toolResults.push({
-                tool_call_id: toolCall.id,
-                name: toolCall.name,
-                result: result,
-              });
-
-              // Parse product results
+        if (response.tool_calls && response.tool_calls.length > 0) {
+          for (const toolCall of response.tool_calls) {
+            const tool = tools.find((t) => t.name === toolCall.name);
+            if (tool) {
               try {
+                const result = await tool.invoke(toolCall.args);
                 const parsedResult = JSON.parse(result);
                 if (parsedResult.products && Array.isArray(parsedResult.products)) {
                   recommendedProducts.push(...parsedResult.products);
                 }
-              } catch (e) {
-                // Not JSON, continue
+              } catch (error) {
+                console.error(`Error executing tool ${toolCall.name}:`, error);
               }
-            } catch (error) {
-              console.error(`Error executing tool ${toolCall.name}:`, error);
-              toolResults.push({
-                tool_call_id: toolCall.id,
-                name: toolCall.name,
-                result: `Error: ${error.message}`,
-              });
             }
           }
         }
-
-        // Create follow-up messages with tool results
-        const followUpMessages = [
-          ...langchainMessages,
-          response,
-          ...toolResults.map((tr) => ({
-            role: "tool",
-            content: tr.result,
-            tool_call_id: tr.tool_call_id,
-            name: tr.name,
-          })),
-        ];
-
-        // Get final response after tool execution
-        const finalResponse = await langchainModel.invoke(followUpMessages);
-        assistantResponse = finalResponse.content;
-      } else {
-        // No tool calls, use response directly
-        assistantResponse = response.content;
       }
-    } catch (langchainError) {
-      console.error("LangChain error, falling back to OpenAI:", langchainError);
-      // Fallback to direct OpenAI API if LangChain fails
+    } catch (workflowError) {
+      console.error("LangGraph workflow error, falling back to OpenAI:", workflowError);
+      // Fallback to direct OpenAI API if workflow fails
       const modelToUse = imageUrl ? "gpt-4o" : (type === "style_access" ? "gpt-4o-mini" : "gpt-4o");
       const completion = await openai.chat.completions.create({
         model: modelToUse,
@@ -951,6 +1118,7 @@ NEVER respond with only questions. Always provide tile recommendations first.`,
         conversationHistory: conversationHistory,
         projectName: recommendation.projectName,
         recommendedProducts: recommendedProducts.length > 0 ? recommendedProducts : undefined,
+        summary: workflowSummary || undefined,
       },
     });
   } catch (error) {
