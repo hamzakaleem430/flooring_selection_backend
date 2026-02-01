@@ -75,6 +75,40 @@ const productSchema = new mongoose.Schema(
     ],
     qr_code: { type: String, unique: true },
     qr_code_image: { type: String },
+    reviews: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "users",
+          required: true,
+        },
+        rating: {
+          type: Number,
+          required: true,
+          min: 1,
+          max: 5,
+        },
+        comment: {
+          type: String,
+          trim: true,
+          maxlength: 1000,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+    averageRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+    totalReviews: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

@@ -10,6 +10,8 @@ import {
   getProductsByCategory,
   getProductsByBrand,
 } from "../helpers/productSearchHelper.js";
+import https from "https";
+import http from "http";
 
 dotenv.config();
 
@@ -199,19 +201,32 @@ Include optional but valuable enhancements:
 - Lighting improvements
 - Room spacing or visual balance tips
 
-## Product Database Integration
+## Product Database Integration - CRITICAL
 
-**IMPORTANT: You have access to a product database with real flooring products. Use the available tools to search for products:**
+**YOU MUST ALWAYS SEARCH FOR AND RECOMMEND PRODUCTS FROM THE DATABASE**
+
+You have access to a product database with real flooring products. **ALWAYS use the available tools to search for products:**
 
 1. **search_products_from_database** - Search products by keyword, category, brand, price range
-2. **get_products_by_category** - Get products from specific categories (vinyl, laminate, hardwood, tile)
-3. **get_products_by_brand** - Get products from specific brands (Shaw, Mohawk, Pergo, etc.)
+   - Use this when user mentions room types (bedroom, kitchen, etc.), styles, or requirements
+   - Search by keywords from user message (e.g., "bedroom", "waterproof", "modern")
+   - Search in product name, description, and category fields
 
-**When recommending products:**
-- ALWAYS use the product search tools to find actual products from the database
-- Include product details: name, brand, price, description, images
-- Reference products by their actual names and IDs from the database
-- If no products match, provide general recommendations with external links
+2. **get_products_by_category** - Get products from specific categories (vinyl, laminate, hardwood, tile)
+   - Use when user mentions flooring types
+
+3. **get_products_by_brand** - Get products from specific brands (Shaw, Mohawk, Pergo, etc.)
+   - Use when user mentions brand names
+
+**CRITICAL RULES:**
+- **ALWAYS search for products FIRST** before giving recommendations
+- **ALWAYS recommend specific products from the database** - never just give general advice
+- If user says "bedroom" or uploads a bedroom image, search for products with "bedroom" in name, description, or category
+- If user mentions requirements (waterproof, pet-friendly), search for products matching those
+- Include product details: name, brand, price, description, images from database
+- Reference products by their actual names from the database
+- Rank products by how well they match user needs
+- If database has products, you MUST recommend them - do not say "no products available"
 
 ## Product References - USE ONLY THESE EXACT VERIFIED LINKS
 
@@ -531,6 +546,93 @@ const productBrandTool = new DynamicStructuredTool({
 // Array of available tools
 const tools = [productSearchTool, productCategoryTool, productBrandTool];
 
+// Helper function to validate image URL accessibility
+const validateImageUrl = async (imageUrl) => {
+  if (!imageUrl) return { valid: false, error: "No image URL provided" };
+  
+  try {
+    return new Promise((resolve) => {
+      const url = new URL(imageUrl);
+      const client = url.protocol === "https:" ? https : http;
+      
+      // For S3 URLs, disable strict SSL checking (common issue with custom S3 domains)
+      const options = {
+        timeout: 5000,
+        rejectUnauthorized: false, // Disable SSL certificate validation for S3 URLs
+      };
+      
+      const request = client.get(url.href, options, (response) => {
+        // Check if response is successful and is an image
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          const contentType = response.headers["content-type"] || "";
+          if (contentType.startsWith("image/")) {
+            response.destroy(); // Close the connection
+            resolve({ valid: true });
+          } else {
+            response.destroy();
+            resolve({ valid: false, error: "URL does not point to an image" });
+          }
+        } else {
+          response.destroy();
+          resolve({ valid: false, error: `HTTP ${response.statusCode}` });
+        }
+      });
+      
+      request.on("error", (error) => {
+        resolve({ valid: false, error: error.message });
+      });
+      
+      request.on("timeout", () => {
+        request.destroy();
+        resolve({ valid: false, error: "Request timeout" });
+      });
+    });
+  } catch (error) {
+    return { valid: false, error: error.message };
+  }
+};
+
+// Helper function to convert image URL to base64 (fallback if URL not accessible)
+const imageUrlToBase64 = async (imageUrl) => {
+  try {
+    return new Promise((resolve, reject) => {
+      const url = new URL(imageUrl);
+      const client = url.protocol === "https:" ? https : http;
+      
+      // For S3 URLs, disable strict SSL checking
+      const options = {
+        rejectUnauthorized: false, // Disable SSL certificate validation for S3 URLs
+        timeout: 10000,
+      };
+      
+      const request = client.get(url.href, options, (response) => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`Failed to fetch image: ${response.statusCode}`));
+          return;
+        }
+        
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => {
+          const buffer = Buffer.concat(chunks);
+          const base64 = buffer.toString("base64");
+          const contentType = response.headers["content-type"] || "image/jpeg";
+          resolve(`data:${contentType};base64,${base64}`);
+        });
+        response.on("error", reject);
+      });
+      
+      request.on("error", reject);
+      request.on("timeout", () => {
+        request.destroy();
+        reject(new Error("Request timeout"));
+      });
+    });
+  } catch (error) {
+    throw new Error(`Failed to convert image to base64: ${error.message}`);
+  }
+};
+
 // LangGraph Workflow for Product Recommendations
 // Using a simple state object approach for compatibility
 const createRecommendationGraph = () => {
@@ -543,12 +645,19 @@ const createRecommendationGraph = () => {
 User Message: ${userMessage}
 ${conversationContext ? `Context: ${conversationContext}` : ''}
 
+IMPORTANT: If the user mentions a room type (bedroom, kitchen, living room, bathroom, dining room, office, basement, attic, hallway, entryway), you MUST extract it as roomType.
+
 Extract and return a JSON object with:
 - category: flooring type mentioned (vinyl, laminate, hardwood, tile, carpet, or null)
 - brand: any brand names mentioned (or null)
 - budget: price range if mentioned (min/max or null)
-- roomType: type of room (bedroom, kitchen, living room, bathroom, etc. or null)
+- roomType: type of room mentioned (bedroom, kitchen, living room, bathroom, dining room, office, basement, attic, hallway, entryway, or null). If user says "bedroom" or "bedrooms", set roomType to "bedroom"
 - preferences: array of key requirements (e.g., ["waterproof", "pet-friendly", "durable"])
+
+Examples:
+- "bedroom" → {"roomType": "bedroom"}
+- "I want to redesign bedroom" → {"roomType": "bedroom"}
+- "kitchen flooring" → {"roomType": "kitchen", "category": null}
 
 Return ONLY valid JSON, no other text.`;
 
@@ -560,113 +669,468 @@ Return ONLY valid JSON, no other text.`;
 
     const response = await model.invoke([{ role: "user", content: analysisPrompt }]);
     
+    // Helper function to extract JSON from markdown code blocks or plain text
+    const extractJSON = (text) => {
+      if (!text) return null;
+      
+      // Try to find JSON in markdown code blocks (```json ... ```)
+      const jsonBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonBlockMatch) {
+        return jsonBlockMatch[1].trim();
+      }
+      
+      // Try to find JSON object in curly braces
+      const jsonObjectMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonObjectMatch) {
+        return jsonObjectMatch[0];
+      }
+      
+      // Return the text as-is if no pattern matches
+      return text.trim();
+    };
+    
     try {
-      const requirements = JSON.parse(response.content);
+      const jsonString = extractJSON(response.content);
+      if (!jsonString) {
+        console.error("No JSON found in response");
+        return { requirements: {} };
+      }
+      
+      const requirements = JSON.parse(jsonString);
+      
+      // Fallback: Extract roomType directly from user message if AI didn't extract it
+      let roomType = requirements.roomType || null;
+      if (!roomType && userMessage) {
+        const roomTypes = ['bedroom', 'kitchen', 'living room', 'bathroom', 'dining room', 'office', 'basement', 'attic', 'hallway', 'entryway'];
+        const userMessageLower = userMessage.toLowerCase();
+        for (const rt of roomTypes) {
+          if (userMessageLower.includes(rt)) {
+            roomType = rt;
+            console.log(`Fallback: Extracted roomType "${rt}" directly from user message`);
+            break;
+          }
+        }
+      }
+      
       return {
         requirements: {
           category: requirements.category || null,
           brand: requirements.brand || null,
           budget: requirements.budget || null,
-          roomType: requirements.roomType || null,
+          roomType: roomType,
           preferences: requirements.preferences || [],
         },
       };
     } catch (error) {
       console.error("Error parsing requirements:", error);
+      console.error("Response content:", response.content);
       return { requirements: {} };
     }
   };
 
   // Node 2: Search Products Based on Requirements
   const searchProductsNode = async (state) => {
-    const { requirements } = state;
-      const allProducts = [];
+    const { requirements, userMessage } = state;
+    const allProducts = [];
 
-      try {
-        // Search by category if specified
-        if (requirements?.category) {
-          const categoryProducts = await getProductsByCategory(requirements.category, 10);
-          allProducts.push(...categoryProducts);
+    try {
+      console.log("Search Products Node - Requirements:", JSON.stringify(requirements));
+      console.log("Search Products Node - User Message:", userMessage);
+      
+      // Build comprehensive search keywords from user message and requirements
+      const searchKeywords = [];
+      
+      // Extract room types and keywords from user message FIRST (before requirements)
+      const roomTypes = ['bedroom', 'kitchen', 'living room', 'bathroom', 'dining room', 'office', 'basement', 'attic', 'hallway', 'entryway', 'bedrooms'];
+      const userMessageLower = (userMessage || '').toLowerCase().trim();
+      
+      // Always extract room types from user message directly
+      roomTypes.forEach(roomType => {
+        if (userMessageLower.includes(roomType) && !searchKeywords.includes(roomType)) {
+          searchKeywords.push(roomType);
+          console.log(`Found room type in message: ${roomType}`);
         }
-
-        // Search by brand if specified
-        if (requirements?.brand) {
-          const brandProducts = await getProductsByBrand(requirements.brand, 10);
-          allProducts.push(...brandProducts);
-        }
-
-        // General search if no specific category/brand
-        if (!requirements?.category && !requirements?.brand) {
-          const searchKeyword = requirements?.preferences?.join(" ") || "";
-          const generalProducts = await searchProducts({
-            keyword: searchKeyword,
-            limit: 15,
-          });
-          allProducts.push(...generalProducts);
-        }
-
-        // Remove duplicates based on product ID
-        const uniqueProducts = Array.from(
-          new Map(allProducts.map((p) => [p._id.toString(), p])).values()
+      });
+      
+      // Add room type from requirements if not already added
+      if (requirements?.roomType && !searchKeywords.includes(requirements.roomType)) {
+        searchKeywords.push(requirements.roomType);
+      }
+      
+      // Add category to search keywords
+      if (requirements?.category) {
+        searchKeywords.push(requirements.category);
+      }
+      
+      // Add preferences to search keywords
+      if (requirements?.preferences && requirements.preferences.length > 0) {
+        searchKeywords.push(...requirements.preferences);
+      }
+      
+      // Combine all keywords into a single search string
+      const combinedKeyword = searchKeywords.join(' ').trim();
+      console.log("Combined search keyword:", combinedKeyword);
+      
+      // Strategy 1: ALWAYS search with user message keywords if available (highest priority)
+      if (userMessage && userMessage.trim().length > 0) {
+        // Extract meaningful words from user message
+        const commonWords = ['i', 'want', 'to', 'redesign', 'need', 'looking', 'for', 'the', 'a', 'an', 'my', 'me', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'can', 'may', 'might', 'must', 'please', 'help', 'show', 'give', 'recommend', 'suggest'];
+        const words = userMessageLower.split(/\s+/).filter(word => 
+          word.length > 2 && !commonWords.includes(word)
         );
+        
+        if (words.length > 0) {
+          const userMessageKeyword = words.join(' ');
+          console.log("Searching with user message keywords:", userMessageKeyword);
+          const userMessageProducts = await searchProducts({
+            keyword: userMessageKeyword,
+            limit: 20,
+          });
+          console.log(`Found ${userMessageProducts.length} products with user message keywords`);
+          allProducts.push(...userMessageProducts);
+        }
+      }
+      
+      // Strategy 2: Search by category if specified
+      if (requirements?.category) {
+        const categoryProducts = await getProductsByCategory(requirements.category, 10);
+        console.log(`Found ${categoryProducts.length} products by category`);
+        allProducts.push(...categoryProducts);
+      }
 
-        // Format products
-        const formattedProducts = uniqueProducts.slice(0, 10).map((product) => ({
-          id: product._id.toString(),
-          name: product.name,
-          description: product.description,
-          price: product.price,
-          sellingPrice: product.sellingPrice || product.price,
-          brand: product.brand || "Unknown",
-          category: product.category || "Uncategorized",
-          seriesName: product.seriesName || null,
-          images: product.images || [],
-          variations: product.variations || [],
-          qrCode: product.qr_code || null,
-        }));
+      // Strategy 3: Search by brand if specified
+      if (requirements?.brand) {
+        const brandProducts = await getProductsByBrand(requirements.brand, 10);
+        console.log(`Found ${brandProducts.length} products by brand`);
+        allProducts.push(...brandProducts);
+      }
 
-        return { searchedProducts: formattedProducts };
+      // Strategy 4: Comprehensive keyword search (searches in name, description, category)
+      // This will find products matching room type, preferences, or any keywords
+      if (combinedKeyword) {
+        console.log("Searching with combined keyword:", combinedKeyword);
+        const keywordProducts = await searchProducts({
+          keyword: combinedKeyword,
+          category: requirements?.category, // Also filter by category if specified
+          limit: 15,
+        });
+        console.log(`Found ${keywordProducts.length} products with combined keyword`);
+        allProducts.push(...keywordProducts);
+      }
+      
+      // Strategy 5: If roomType is specified, search specifically for it (even if already in combinedKeyword)
+      if (requirements?.roomType) {
+        const roomTypeProducts = await searchProducts({
+          keyword: requirements.roomType,
+          limit: 10,
+        });
+        console.log(`Found ${roomTypeProducts.length} products with roomType: ${requirements.roomType}`);
+        allProducts.push(...roomTypeProducts);
+      }
+      
+      // Strategy 6: Search for each individual room type found in message (await all)
+      const roomTypeSearches = [];
+      for (const roomType of roomTypes) {
+        if (userMessageLower.includes(roomType)) {
+          roomTypeSearches.push(
+            searchProducts({
+              keyword: roomType,
+              limit: 10,
+            }).then(products => {
+              if (products.length > 0) {
+                console.log(`Found ${products.length} products for room type: ${roomType}`);
+              }
+              return products;
+            }).catch(err => {
+              console.error(`Error searching for ${roomType}:`, err);
+              return [];
+            })
+          );
+        }
+      }
+      
+      // Wait for all room type searches to complete
+      if (roomTypeSearches.length > 0) {
+        const roomTypeResults = await Promise.all(roomTypeSearches);
+        roomTypeResults.forEach(products => {
+          allProducts.push(...products);
+        });
+      }
+
+      console.log(`Total products found before deduplication: ${allProducts.length}`);
+
+      // Remove duplicates based on product ID
+      const uniqueProducts = Array.from(
+        new Map(allProducts.map((p) => [p._id.toString(), p])).values()
+      );
+      
+      console.log(`Unique products after deduplication: ${uniqueProducts.length}`);
+
+      // Format products
+      const formattedProducts = uniqueProducts.slice(0, 10).map((product) => ({
+        id: product._id.toString(),
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        sellingPrice: product.sellingPrice || product.price,
+        brand: product.brand || "Unknown",
+        category: product.category || "Uncategorized",
+        seriesName: product.seriesName || null,
+        images: product.images || [],
+        variations: product.variations || [],
+        qrCode: product.qr_code || null,
+      }));
+
+      return { searchedProducts: formattedProducts };
     } catch (error) {
       console.error("Error searching products:", error);
       return { searchedProducts: [] };
     }
   };
 
-  // Node 3: Generate AI Recommendations with Products
+  // Node 3: Generate AI Recommendations with Products (AI actively searches and recommends)
   const generateRecommendations = async (state) => {
-    const { userMessage, conversationContext, requirements, searchedProducts } = state;
-      const productsContext = searchedProducts && searchedProducts.length > 0
-        ? `\n\n## Available Products from Database:\n${JSON.stringify(searchedProducts.slice(0, 8), null, 2)}`
-        : "\n\n## Note: No products found in database. Provide general recommendations.";
+    const { userMessage, conversationContext, requirements, searchedProducts, imageUrl } = state;
+    
+    // Format products for AI analysis
+    const productsContext = searchedProducts && searchedProducts.length > 0
+        ? `\n\n## Available Products from Database (${searchedProducts.length} products found):\n${JSON.stringify(searchedProducts.slice(0, 15), null, 2)}\n\nIMPORTANT: You MUST recommend specific products from this list. Include product names, brands, prices, and explain why each product fits the user's needs.`
+        : "\n\n## Note: No products found in database. You should still provide general recommendations with material types, colors, and styles that would work.";
 
-      const recommendationPrompt = `You are an expert interior designer. Based on the user's requirements and available products, provide comprehensive recommendations.
+    // Build image analysis context if image is provided
+    const imageAnalysisContext = imageUrl 
+      ? `\n\n## USER UPLOADED IMAGE
+The user has uploaded a room image. Analyze this image carefully to understand:
+- Room type and size
+- Existing flooring/floor condition
+- Wall colors and furniture style
+- Overall design theme (modern, traditional, rustic, etc.)
+- Lighting conditions
+- Any visible constraints or requirements
 
-User Requirements:
-- Category: ${requirements?.category || "Not specified"}
+Use this visual information to recommend products that will match the room's aesthetic and functional needs.
+
+Image URL: ${imageUrl}`
+      : "";
+
+    const recommendationPrompt = `You are an expert interior designer and flooring consultant. Your task is to analyze the user's requirements ${imageUrl ? 'and uploaded image' : ''} and provide intelligent product recommendations.
+
+## User Information:
+${imageAnalysisContext}
+
+## User Requirements Extracted:
+- Category: ${requirements?.category || "Not specified (analyze from image/message)"}
 - Brand: ${requirements?.brand || "Not specified"}
-- Room Type: ${requirements?.roomType || "Not specified"}
+- Room Type: ${requirements?.roomType || "Not specified (analyze from image/message)"}
 - Preferences: ${requirements?.preferences?.join(", ") || "None specified"}
-${conversationContext ? `\nConversation Context: ${conversationContext}` : ""}
+${conversationContext ? `\n## Conversation Context:\n${conversationContext}` : ""}
 
-User Message: ${userMessage}
+## User Message:
+${userMessage}
 ${productsContext}
 
-Provide a detailed recommendation that:
-1. Analyzes the user's needs
-2. Recommends 2-4 flooring options (use products from database if available)
-3. Explains why each option fits
-4. Includes product details (name, brand, price) from the database
-5. Provides design suggestions
+## Your Task:
+
+1. **Analyze Requirements** (from image, message, and extracted requirements):
+   - If image provided: Analyze room type, style, colors, size, and existing conditions
+   - Identify flooring needs based on room type and usage
+   - Determine style preferences (modern, traditional, etc.)
+   - Note any specific requirements (waterproof, pet-friendly, etc.)
+
+2. **Intelligently Match Products**:
+   - Review ALL products from the database
+   - Select the BEST 3-5 products that match the user's needs
+   - Rank them by how well they fit (best match first)
+   - Explain WHY each product is recommended
+
+3. **Provide Detailed Recommendations**:
+   For each recommended product, include:
+   - Product Name (from database)
+   - Brand
+   - Price
+   - Why it fits (room type, style, requirements)
+   - Key features that match user needs
+   - Design tips for using this product
+
+4. **Format Your Response**:
+   Use markdown with these sections:
+   - ## Quick Summary
+   - ## Room Analysis (what you see/understand)
+   - ## Recommended Products (3-5 products with details)
+   - ## Design Suggestions
+   - ## Why These Products Work
+
+**CRITICAL RULES:**
+1. **If products are available in the database list above, you MUST recommend them by name**
+2. **Do NOT say "no products available" if products are listed above**
+3. **Always include product names, brands, and prices from the database**
+4. **Explain why each recommended product fits the user's needs**
+5. **Rank products by how well they match (best match first)**
+
+**Example Format for Product Recommendations:**
+\`\`\`
+## Recommended Products
+
+### 1. [Product Name from Database]
+- **Brand:** [Brand from database]
+- **Price:** $[Price from database]
+- **Why it fits:** [Explain based on user's room/image/requirements]
+- **Key Features:** [Features that match user needs]
+
+### 2. [Product Name from Database]
+- **Brand:** [Brand from database]
+- **Price:** $[Price from database]
+- **Why it fits:** [Explain]
+\`\`\`
 
 Format your response in markdown with clear sections.`;
 
-      const model = new ChatOpenAI({
-        modelName: "gpt-4o",
-        temperature: 0.7,
-        apiKey: apiKey,
-      });
+    // Use GPT-4o with vision if image is provided, otherwise use GPT-4o
+    // Bind tools so AI can actively search for more products if needed
+    const model = new ChatOpenAI({
+      modelName: "gpt-4o",
+      temperature: 0.7,
+      apiKey: apiKey,
+    });
+    
+    const modelWithTools = model.bindTools(tools);
 
-    const response = await model.invoke([{ role: "user", content: recommendationPrompt }]);
+    // Prepare messages for vision API if image is provided
+    let messagesToSend = [];
+    let useImage = false;
+    let imageContent = null;
+    
+    if (imageUrl) {
+      try {
+        // Validate image URL first
+        console.log("Validating image URL:", imageUrl);
+        const validation = await validateImageUrl(imageUrl);
+        
+        if (validation.valid) {
+          console.log("Image URL is valid, using it for vision analysis");
+          useImage = true;
+          imageContent = {
+            type: "image_url",
+            image_url: {
+              url: imageUrl,
+              detail: "high",
+            },
+          };
+        } else {
+          console.warn("Image URL validation failed:", validation.error);
+          // Try to convert to base64 as fallback
+          try {
+            console.log("Attempting to convert image to base64...");
+            const base64Image = await imageUrlToBase64(imageUrl);
+            useImage = true;
+            imageContent = {
+              type: "image_url",
+              image_url: {
+                url: base64Image,
+                detail: "high",
+              },
+            };
+            console.log("Successfully converted image to base64");
+          } catch (base64Error) {
+            console.error("Failed to convert image to base64:", base64Error.message);
+            // Continue without image - user message should be enough
+            useImage = false;
+          }
+        }
+      } catch (error) {
+        console.error("Error validating image URL:", error);
+        // Continue without image
+        useImage = false;
+      }
+    }
+    
+    // Build messages with or without image
+    if (useImage && imageContent) {
+      messagesToSend = [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: recommendationPrompt,
+            },
+            imageContent,
+          ],
+        },
+      ];
+    } else {
+      // If image validation failed, mention it in the prompt but continue
+      const promptWithImageNote = imageUrl 
+        ? recommendationPrompt + `\n\nNote: An image was provided but could not be analyzed. Please provide recommendations based on the user's message and requirements.`
+        : recommendationPrompt;
+      messagesToSend = [{ role: "user", content: promptWithImageNote }];
+    }
+
+    // Invoke model with tools - AI can search for more products if needed
+    let response;
+    try {
+      response = await modelWithTools.invoke(messagesToSend);
+    } catch (visionError) {
+      // If vision API fails, retry without image
+      if (useImage && (visionError.code === "invalid_image_url" || visionError.message?.includes("image"))) {
+        console.warn("Vision API error, retrying without image:", visionError.message);
+        const promptWithoutImage = recommendationPrompt + `\n\nNote: Image analysis was not available. Please provide recommendations based on the user's message and requirements.`;
+        messagesToSend = [{ role: "user", content: promptWithoutImage }];
+        response = await modelWithTools.invoke(messagesToSend);
+      } else {
+        throw visionError;
+      }
+    }
+    
+    // If AI wants to call tools to search for more products, execute them
+    if (response.tool_calls && response.tool_calls.length > 0) {
+      const toolResults = [];
+      for (const toolCall of response.tool_calls) {
+        const tool = tools.find((t) => t.name === toolCall.name);
+        if (tool) {
+          try {
+            const result = await tool.invoke(toolCall.args);
+            toolResults.push({
+              tool_call_id: toolCall.id,
+              name: toolCall.name,
+              result: result,
+            });
+            
+            // Parse product results and add to searchedProducts if not already there
+            try {
+              const parsedResult = JSON.parse(result);
+              if (parsedResult.products && Array.isArray(parsedResult.products)) {
+                // Add new products to the state (they'll be merged in finalizeResponse)
+                console.log(`AI found ${parsedResult.products.length} additional products via tool call`);
+              }
+            } catch (e) {
+              // Not JSON, continue
+            }
+          } catch (error) {
+            console.error(`Error executing tool ${toolCall.name}:`, error);
+            toolResults.push({
+              tool_call_id: toolCall.id,
+              name: toolCall.name,
+              result: `Error: ${error.message}`,
+            });
+          }
+        }
+      }
+      
+      // Get final response after tool execution
+      const followUpMessages = [
+        ...messagesToSend,
+        response,
+        ...toolResults.map((tr) => ({
+          role: "tool",
+          content: tr.result,
+          tool_call_id: tr.tool_call_id,
+          name: tr.name,
+        })),
+      ];
+      
+      response = await model.invoke(followUpMessages);
+    }
     
     return { aiAnalysis: response.content };
   };
@@ -675,22 +1139,65 @@ Format your response in markdown with clear sections.`;
   const finalizeResponse = async (state) => {
     const { aiAnalysis, searchedProducts, requirements } = state;
 
-    const topProducts = searchedProducts?.slice(0, 5) || [];
+    // Select top products - prioritize products that match requirements
+    let topProducts = searchedProducts || [];
+    
+    // If we have products, rank them by relevance
+    if (topProducts.length > 0) {
+      // Sort by relevance: products matching roomType, category, or preferences get higher priority
+      topProducts = topProducts.sort((a, b) => {
+        let scoreA = 0;
+        let scoreB = 0;
+        
+        // Check roomType match in name, description, or category
+        if (requirements?.roomType) {
+          const roomTypeLower = requirements.roomType.toLowerCase();
+          if (a.name?.toLowerCase().includes(roomTypeLower) || 
+              a.description?.toLowerCase().includes(roomTypeLower) ||
+              a.category?.toLowerCase().includes(roomTypeLower)) {
+            scoreA += 3;
+          }
+          if (b.name?.toLowerCase().includes(roomTypeLower) || 
+              b.description?.toLowerCase().includes(roomTypeLower) ||
+              b.category?.toLowerCase().includes(roomTypeLower)) {
+            scoreB += 3;
+          }
+        }
+        
+        // Check category match
+        if (requirements?.category && a.category?.toLowerCase().includes(requirements.category.toLowerCase())) {
+          scoreA += 2;
+        }
+        if (requirements?.category && b.category?.toLowerCase().includes(requirements.category.toLowerCase())) {
+          scoreB += 2;
+        }
+        
+        // Prefer products with images
+        if (a.images && a.images.length > 0) scoreA += 1;
+        if (b.images && b.images.length > 0) scoreB += 1;
+        
+        return scoreB - scoreA; // Higher score first
+      });
+    }
+    
+    // Take top 5-8 products for recommendations
+    const recommendedProducts = topProducts.slice(0, 8);
+    
     const summary = {
       category: requirements?.category || "General",
       roomType: requirements?.roomType || "Not specified",
-      productCount: topProducts.length,
-      priceRange: topProducts.length > 0
+      productCount: recommendedProducts.length,
+      priceRange: recommendedProducts.length > 0
         ? {
-            min: Math.min(...topProducts.map((p) => p.price)),
-            max: Math.max(...topProducts.map((p) => p.price)),
+            min: Math.min(...recommendedProducts.map((p) => p.price || 0)),
+            max: Math.max(...recommendedProducts.map((p) => p.price || 0)),
           }
         : null,
     };
 
     return {
       finalResponse: aiAnalysis,
-      recommendedProducts: topProducts,
+      recommendedProducts: recommendedProducts,
       summary: summary,
     };
   };
@@ -700,6 +1207,7 @@ Format your response in markdown with clear sections.`;
     channels: {
       userMessage: { reducer: (x, y) => y ?? x },
       conversationContext: { reducer: (x, y) => y ?? x },
+      imageUrl: { reducer: (x, y) => y ?? x },
       requirements: { reducer: (x, y) => y ?? x },
       searchedProducts: { reducer: (x, y) => y ?? x },
       aiAnalysis: { reducer: (x, y) => y ?? x },
@@ -722,12 +1230,13 @@ Format your response in markdown with clear sections.`;
 };
 
 // Run the LangGraph workflow
-const runProductRecommendationWorkflow = async (userMessage, conversationContext = null) => {
+const runProductRecommendationWorkflow = async (userMessage, conversationContext = null, imageUrl = null) => {
   try {
     const graph = createRecommendationGraph();
     const result = await graph.invoke({
       userMessage,
       conversationContext: conversationContext || "",
+      imageUrl: imageUrl || "",
     });
     return result;
   } catch (error) {
@@ -978,28 +1487,56 @@ NEVER respond with only questions. Always provide tile recommendations first.`,
 
     // Handle image analysis for both interior_design and style_access types
     let apiMessages = enhancedMessages;
-    if (imageUrl) {
-      // Modify the last user message to include the image for Vision API
-      const lastMessageIndex = apiMessages.length - 1;
-      const lastMessage = apiMessages[lastMessageIndex];
+    let processedImageUrl = imageUrl; // Use a separate variable to avoid const reassignment
+    
+    if (processedImageUrl) {
+      try {
+        // Validate image URL before adding to messages
+        const validation = await validateImageUrl(processedImageUrl);
+        let imageUrlToUse = processedImageUrl;
+        
+        if (!validation.valid) {
+          console.warn("Image URL validation failed, trying base64 conversion:", validation.error);
+          try {
+            imageUrlToUse = await imageUrlToBase64(processedImageUrl);
+            console.log("Successfully converted image to base64 for apiMessages");
+          } catch (base64Error) {
+            console.error("Failed to convert image to base64:", base64Error.message);
+            // Continue without image - don't add it to apiMessages
+            processedImageUrl = null;
+            imageUrlToUse = null;
+          }
+        }
+        
+        // Only add image if we have a valid URL (original or base64)
+        if (processedImageUrl && imageUrlToUse) {
+          // Modify the last user message to include the image for Vision API
+          const lastMessageIndex = apiMessages.length - 1;
+          const lastMessage = apiMessages[lastMessageIndex];
 
-      if (lastMessage.role === "user") {
-        apiMessages[lastMessageIndex] = {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: lastMessage.content,
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: imageUrl,
-                detail: "high",
-              },
-            },
-          ],
-        };
+          if (lastMessage.role === "user") {
+            apiMessages[lastMessageIndex] = {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: lastMessage.content,
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: imageUrlToUse,
+                    detail: "high",
+                  },
+                },
+              ],
+            };
+          }
+        }
+      } catch (error) {
+        console.error("Error processing image URL for apiMessages:", error);
+        // Continue without image
+        processedImageUrl = null;
       }
     }
 
@@ -1009,15 +1546,27 @@ NEVER respond with only questions. Always provide tile recommendations first.`,
     let workflowSummary = null;
 
     try {
-      // Run LangGraph workflow to get product recommendations
+      // Run LangGraph workflow to get product recommendations (pass imageUrl for analysis)
       const workflowResult = await runProductRecommendationWorkflow(
         message,
-        summarizedContext || null
+        summarizedContext || null,
+        imageUrl || null
       );
 
       assistantResponse = workflowResult.finalResponse;
       recommendedProducts = workflowResult.recommendedProducts || [];
       workflowSummary = workflowResult.summary;
+      
+      // Ensure products are always returned if found, even if AI didn't mention them
+      if (recommendedProducts.length > 0 && !assistantResponse.includes("Recommended Products") && !assistantResponse.includes("Product")) {
+        // Add product section to response if AI didn't include it
+        const productSection = `\n\n## Recommended Products from Database\n\nI found ${recommendedProducts.length} products that match your requirements:\n\n${recommendedProducts.slice(0, 5).map((product, idx) => 
+          `${idx + 1}. **${product.name}** (${product.brand}) - $${product.price?.toFixed(2) || '0.00'}\n   ${product.description ? product.description.substring(0, 100) + '...' : ''}`
+        ).join('\n\n')}`;
+        
+        assistantResponse = assistantResponse + productSection;
+        console.log("Added product section to AI response as AI didn't mention products");
+      }
 
       // If workflow didn't return products, try fallback with tools
       if (recommendedProducts.length === 0) {
@@ -1070,15 +1619,92 @@ NEVER respond with only questions. Always provide tile recommendations first.`,
       }
     } catch (workflowError) {
       console.error("LangGraph workflow error, falling back to OpenAI:", workflowError);
+      
       // Fallback to direct OpenAI API if workflow fails
+      // Handle image URL validation for fallback too
+      let fallbackMessages = [...apiMessages];
+      
+      if (imageUrl) {
+        try {
+          const validation = await validateImageUrl(imageUrl);
+          if (!validation.valid) {
+            console.warn("Image URL invalid in fallback, trying base64 conversion...");
+            try {
+              const base64Image = await imageUrlToBase64(imageUrl);
+              // Update the last user message to use base64
+              const lastMessageIndex = fallbackMessages.length - 1;
+              if (fallbackMessages[lastMessageIndex]?.role === "user") {
+                const lastMsg = fallbackMessages[lastMessageIndex];
+                if (Array.isArray(lastMsg.content)) {
+                  // Update image_url to use base64
+                  const imageIndex = lastMsg.content.findIndex(item => item.type === "image_url");
+                  if (imageIndex !== -1) {
+                    fallbackMessages[lastMessageIndex].content[imageIndex].image_url.url = base64Image;
+                  }
+                }
+              }
+            } catch (base64Error) {
+              console.error("Base64 conversion failed in fallback:", base64Error);
+              // Remove image from messages and continue
+              const lastMessageIndex = fallbackMessages.length - 1;
+              if (fallbackMessages[lastMessageIndex]?.role === "user") {
+                const lastMsg = fallbackMessages[lastMessageIndex];
+                if (Array.isArray(lastMsg.content)) {
+                  fallbackMessages[lastMessageIndex].content = lastMsg.content.filter(
+                    item => item.type !== "image_url"
+                  );
+                  // Add note about image
+                  if (fallbackMessages[lastMessageIndex].content.length > 0) {
+                    fallbackMessages[lastMessageIndex].content[0].text += 
+                      "\n\nNote: Image analysis was not available. Please provide recommendations based on the user's message.";
+                  }
+                }
+              }
+            }
+          }
+        } catch (validationError) {
+          console.error("Image validation error in fallback:", validationError);
+          // Continue without image
+        }
+      }
+      
       const modelToUse = imageUrl ? "gpt-4o" : (type === "style_access" ? "gpt-4o-mini" : "gpt-4o");
-      const completion = await openai.chat.completions.create({
-        model: modelToUse,
-        messages: apiMessages,
-        temperature: 0.7,
-        max_tokens: 2500,
-      });
-      assistantResponse = completion.choices[0].message.content;
+      
+      try {
+        const completion = await openai.chat.completions.create({
+          model: modelToUse,
+          messages: fallbackMessages,
+          temperature: 0.7,
+          max_tokens: 2500,
+        });
+        assistantResponse = completion.choices[0].message.content;
+      } catch (openaiError) {
+        // If still fails with image, retry without image
+        if (imageUrl && (openaiError.code === "invalid_image_url" || openaiError.message?.includes("image"))) {
+          console.warn("OpenAI API error with image, retrying without image...");
+          const messagesWithoutImage = fallbackMessages.map(msg => {
+            if (msg.role === "user" && Array.isArray(msg.content)) {
+              return {
+                ...msg,
+                content: msg.content.filter(item => item.type !== "image_url").map(item => 
+                  item.type === "text" ? { ...item, text: item.text + "\n\nNote: Image analysis was not available." } : item
+                ),
+              };
+            }
+            return msg;
+          });
+          
+          const completion = await openai.chat.completions.create({
+            model: modelToUse,
+            messages: messagesWithoutImage,
+            temperature: 0.7,
+            max_tokens: 2500,
+          });
+          assistantResponse = completion.choices[0].message.content;
+        } else {
+          throw openaiError;
+        }
+      }
     }
 
     // Apply link fixing for interior design responses

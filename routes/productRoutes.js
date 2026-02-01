@@ -13,6 +13,9 @@ import {
   bulkApplyMargin,
   toggleMarginLock,
   toggleProductActivation,
+  createOrUpdateReview,
+  deleteReview,
+  getProductReviews,
 } from "../controllers/productController.js";
 
 const router = express.Router();
@@ -52,6 +55,11 @@ router.post("/toggle-margin-lock", isAuthenticated, toggleMarginLock);
 
 // Toggle product activation
 router.post("/toggle-activation", isAuthenticated, toggleProductActivation);
+
+// Product Reviews
+router.post("/:id/reviews", isAuthenticated, createOrUpdateReview);
+router.delete("/:id/reviews/:reviewId", isAuthenticated, deleteReview);
+router.get("/:id/reviews", getProductReviews);
 
 // Get Complete Coordinates
 // router.get("/getCompleteCoordinates", getCompleteCoordinates);

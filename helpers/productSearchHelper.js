@@ -24,20 +24,33 @@ export const searchProducts = async (searchCriteria = {}) => {
       limit = 10,
     } = searchCriteria;
 
-    // Build query
-    const query = {
-      isActive: true,
-    };
+    // Build query - include both active and inactive products for recommendations
+    // Recommendations should show all available products, not just active ones
+    const query = {};
 
-    // Keyword search (searches in multiple fields)
+    // Keyword search (searches in multiple fields: name, description, category)
+    // This searches for products where the keyword appears in title, description, or category
     if (keyword) {
-      query.$or = [
-        { name: { $regex: keyword, $options: "i" } },
-        { description: { $regex: keyword, $options: "i" } },
-        { brand: { $regex: keyword, $options: "i" } },
-        { category: { $regex: keyword, $options: "i" } },
-        { seriesName: { $regex: keyword, $options: "i" } },
-      ];
+      // Split keyword into individual words for better matching
+      const keywordWords = keyword.trim().split(/\s+/).filter(word => word.length > 0);
+      
+      // Build search conditions - match if ANY word appears in ANY field
+      // This allows flexible matching: "bedroom" will find products with "bedroom" in name, description, or category
+      const searchConditions = [];
+      
+      keywordWords.forEach(word => {
+        searchConditions.push(
+          { name: { $regex: word, $options: "i" } },
+          { description: { $regex: word, $options: "i" } },
+          { category: { $regex: word, $options: "i" } },
+          { brand: { $regex: word, $options: "i" } },
+          { seriesName: { $regex: word, $options: "i" } }
+        );
+      });
+      
+      // Use $or to match if any word appears in any field
+      // This is more flexible - "redesign bedroom" will match products with either word
+      query.$or = searchConditions;
     }
 
     // Category filter
@@ -124,8 +137,8 @@ export const getProductsByCategory = async (categoryKeyword, limit = 10) => {
       }
     }
 
+    // Include both active and inactive products for recommendations
     const query = {
-      isActive: true,
       $or: [
         { category: { $regex: categoryKeyword, $options: "i" } },
         { name: { $regex: categoryKeyword, $options: "i" } },
@@ -175,9 +188,9 @@ export const getProductsByCategory = async (categoryKeyword, limit = 10) => {
  */
 export const getProductsByBrand = async (brandName, limit = 10) => {
   try {
+    // Include both active and inactive products for recommendations
     const products = await productModel
       .find({
-        isActive: true,
         brand: { $regex: brandName, $options: "i" },
       })
       .populate("user", "name email profileImage")

@@ -230,7 +230,7 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const productId = req.params.id;
-    const { name, description, price, brand, category, seriesName, cost, margin, profitType, qrcode, deleteImage, deleteVariationImages, variationImagesCount } = req.body;
+    const { name, description, price, brand, category, seriesName, cost, margin, profitType, qrcode, isActive, deleteImage, deleteVariationImages, variationImagesCount } = req.body;
 
     console.log("Update Product Request Body:", {
       name,
@@ -458,35 +458,88 @@ export const updateProduct = async (req, res) => {
       });
     }
 
-    // Calculate selling price if cost and margin are provided
-    const costValue = cost !== undefined ? parseFloat(cost) : (product.cost || 0);
-    const marginValue = margin !== undefined ? parseFloat(margin) : (product.margin || 0);
+    // Helper function to safely parse numbers
+    const safeParseFloat = (value, defaultValue = 0) => {
+      if (value === undefined || value === null || value === "") {
+        return defaultValue;
+      }
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? defaultValue : parsed;
+    };
+
+    // Parse numeric values safely
+    const costValue = cost !== undefined 
+      ? safeParseFloat(cost, product.cost || 0) 
+      : (product.cost || 0);
+    const marginValue = margin !== undefined
+      ? safeParseFloat(margin, product.margin || 0)
+      : (product.margin || 0);
+    const priceValue = price !== undefined && price !== ""
+      ? safeParseFloat(price, product.price)
+      : product.price;
+    
     const profitTypeValue = profitType || product.profitType || "markup";
-    const sellingPrice = (costValue && marginValue) 
-      ? calculateSellingPrice(costValue, marginValue, profitTypeValue)
-      : (price ? parseFloat(price) : product.price);
+    
+    // Calculate selling price only if both cost and margin are valid numbers
+    let sellingPrice = priceValue;
+    if (costValue > 0 && marginValue > 0) {
+      sellingPrice = calculateSellingPrice(costValue, marginValue, profitTypeValue);
+    }
+
+    // Validate required fields - ensure they're not empty strings
+    if (name !== undefined && (!name || name.trim().length < 3)) {
+      return res.status(400).json({
+        success: false,
+        message: "Product name is required and must be at least 3 characters long.",
+      });
+    }
+
+    if (description !== undefined && (!description || description.trim().length < 10)) {
+      return res.status(400).json({
+        success: false,
+        message: "Product description is required and must be at least 10 characters long.",
+      });
+    }
+
+    if (price !== undefined && price !== "" && (isNaN(priceValue) || priceValue <= 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid product price is required (must be greater than 0).",
+      });
+    }
+
+    // Build update object - only update fields that are provided and valid
+    const updateData = {
+      name: name !== undefined && name.trim() ? name.trim() : product.name,
+      description: description !== undefined && description.trim() ? description.trim() : product.description,
+      price: priceValue,
+      brand: brand !== undefined ? (brand.trim() || product.brand) : product.brand,
+      category: category !== undefined ? (category.trim() || product.category) : product.category,
+      seriesName: seriesName !== undefined ? (seriesName.trim() || product.seriesName) : product.seriesName,
+      cost: costValue,
+      margin: marginValue,
+      profitType: profitTypeValue,
+      sellingPrice: sellingPrice,
+      variations: variations !== undefined ? variations : product.variations,
+      images: mainProductImages,
+    };
+
+    // Update qrcode if provided
+    if (qrcode !== undefined) {
+      updateData.qr_code = qrcode;
+    }
+
+    // Update isActive if provided
+    if (isActive !== undefined) {
+      // Handle both boolean and string values from FormData
+      updateData.isActive = isActive === true || isActive === "true" || (typeof isActive === "string" && isActive.toLowerCase() === "true");
+    }
 
     const updatedProduct = await productModel.findByIdAndUpdate(
       productId,
-      {
-        name: name || product.name,
-        description: description || product.description,
-        price: price !== undefined ? parseFloat(price) : product.price,
-        brand: brand !== undefined ? brand : product.brand,
-        category: category !== undefined ? category : product.category,
-        seriesName: seriesName !== undefined ? seriesName : product.seriesName,
-        cost: costValue,
-        margin: marginValue,
-        profitType: profitTypeValue,
-        sellingPrice: sellingPrice,
-        variations: variations || product.variations,
-        qrcode: qrcode || product.qrcode,
-        images: mainProductImages,
-      },
+      updateData,
       { new: true }
     );
-
-    console.log("Product updated successfully:", updatedProduct._id);
 
     return res.status(200).json({
       success: true,
@@ -951,6 +1004,187 @@ export const toggleProductActivation = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Error toggling product activation, please try again later.",
+      error: error.message,
+    });
+  }
+};
+
+// Helper function to calculate average rating
+const calculateAverageRating = (reviews) => {
+  if (!reviews || reviews.length === 0) return 0;
+  const sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+  return (sum / reviews.length).toFixed(1);
+};
+
+// Create or Update Product Review
+export const createOrUpdateReview = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const { rating, comment } = req.body;
+    const userId = req.user._id;
+
+    if (!productId) {
+      return res.status(400).json({
+        success: false,
+        message: "Product ID is required.",
+      });
+    }
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Rating is required and must be between 1 and 5.",
+      });
+    }
+
+    const product = await productModel.findById(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found.",
+      });
+    }
+
+    // Check if user already reviewed this product
+    const existingReviewIndex = product.reviews.findIndex(
+      (review) => review.user.toString() === userId.toString()
+    );
+
+    const reviewData = {
+      user: userId,
+      rating: parseInt(rating),
+      comment: comment || "",
+      createdAt: new Date(),
+    };
+
+    if (existingReviewIndex !== -1) {
+      // Update existing review
+      product.reviews[existingReviewIndex] = reviewData;
+    } else {
+      // Add new review
+      product.reviews.push(reviewData);
+    }
+
+    // Calculate average rating and total reviews
+    product.averageRating = parseFloat(calculateAverageRating(product.reviews));
+    product.totalReviews = product.reviews.length;
+
+    await product.save();
+
+    return res.status(200).json({
+      success: true,
+      message: existingReviewIndex !== -1 
+        ? "Review updated successfully." 
+        : "Review added successfully.",
+      review: reviewData,
+      averageRating: product.averageRating,
+      totalReviews: product.totalReviews,
+    });
+  } catch (error) {
+    console.error("Error creating/updating review:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error creating/updating review, please try again later.",
+      error: error.message,
+    });
+  }
+};
+
+// Delete Product Review
+export const deleteReview = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const reviewId = req.params.reviewId;
+    const userId = req.user._id;
+
+    if (!productId || !reviewId) {
+      return res.status(400).json({
+        success: false,
+        message: "Product ID and Review ID are required.",
+      });
+    }
+
+    const product = await productModel.findById(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found.",
+      });
+    }
+
+    // Find and remove the review
+    const reviewIndex = product.reviews.findIndex(
+      (review) => 
+        review._id.toString() === reviewId.toString() &&
+        review.user.toString() === userId.toString()
+    );
+
+    if (reviewIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Review not found or you don't have permission to delete it.",
+      });
+    }
+
+    product.reviews.splice(reviewIndex, 1);
+
+    // Recalculate average rating and total reviews
+    product.averageRating = parseFloat(calculateAverageRating(product.reviews));
+    product.totalReviews = product.reviews.length;
+
+    await product.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Review deleted successfully.",
+      averageRating: product.averageRating,
+      totalReviews: product.totalReviews,
+    });
+  } catch (error) {
+    console.error("Error deleting review:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error deleting review, please try again later.",
+      error: error.message,
+    });
+  }
+};
+
+// Get Product Reviews
+export const getProductReviews = async (req, res) => {
+  try {
+    const productId = req.params.id;
+
+    if (!productId) {
+      return res.status(400).json({
+        success: false,
+        message: "Product ID is required.",
+      });
+    }
+
+    const product = await productModel
+      .findById(productId)
+      .populate("reviews.user", "name email profileImage")
+      .select("reviews averageRating totalReviews");
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      reviews: product.reviews,
+      averageRating: product.averageRating,
+      totalReviews: product.totalReviews,
+    });
+  } catch (error) {
+    console.error("Error fetching reviews:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching reviews, please try again later.",
       error: error.message,
     });
   }
