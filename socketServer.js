@@ -14,7 +14,7 @@ export const getIO = () => {
 export const initialSocketServer = async (server) => {
   io = new SocketIOServer(server, {
     cors: {
-      origin: "*", // Configure with specific frontend URL in production
+      origin: "*", 
       methods: ["GET", "POST"]
     }
   });
