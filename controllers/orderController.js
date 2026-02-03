@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import orderModel from "../models/orderModel.js";
 import selectedProductsModel from "../models/selectedProductsModel.js";
 import { createNotificationWithSocket } from "../helper/notificationHelper.js";
@@ -38,17 +39,6 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    // Handle backward compatibility
-    if (selectedProducts.products && selectedProducts.products.length > 0) {
-      const firstProduct = selectedProducts.products[0];
-      if (!firstProduct.product || !firstProduct.quantity) {
-        return res.status(400).json({
-          success: false,
-          message: "Selected products format is invalid",
-        });
-      }
-    }
-
     if (!selectedProducts.products || selectedProducts.products.length === 0) {
       return res.status(400).json({
         success: false,
@@ -56,15 +46,66 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    // Build order items from selected products
-    const items = selectedProducts.products.map((item) => {
+    // Filter out invalid products (null after population means product was deleted)
+    const validProducts = selectedProducts.products.filter((item) => {
+      // Check if product exists - handle both populated objects and ObjectIds
+      let hasProduct = false;
+      if (item.product) {
+        // Check if it's a populated object with _id
+        if (typeof item.product === 'object' && item.product._id) {
+          hasProduct = true;
+        } 
+        // Check if it's an ObjectId string
+        else if (typeof item.product === 'string' || item.product instanceof mongoose.Types.ObjectId) {
+          hasProduct = true;
+        }
+      }
+      
+      const hasQuantity = item.quantity && item.quantity > 0;
+      
+      if (!hasProduct || !hasQuantity) {
+        console.warn(`Invalid product item found:`, {
+          product: item.product,
+          productType: typeof item.product,
+          quantity: item.quantity,
+          itemId: item._id
+        });
+        return false;
+      }
+      return true;
+    });
+
+    if (validProducts.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid products found. Some products may have been deleted. Please remove invalid products and try again.",
+      });
+    }
+
+    // Build order items from valid selected products
+    const items = validProducts.map((item) => {
       const product = item.product;
-      const unitPrice = item.suggestedPrice || product.price || 0;
+      // Handle both populated product objects and ObjectIds
+      let productId;
+      let productPrice = 0;
+      
+      if (typeof product === 'object' && product._id) {
+        // Populated product object
+        productId = product._id;
+        productPrice = product.price || product.sellingPrice || 0;
+      } else {
+        // ObjectId (string or ObjectId instance)
+        productId = product.toString();
+        // If not populated, we can't get the price, so use suggestedPrice or 0
+        productPrice = 0;
+      }
+      
+      const unitPrice = item.suggestedPrice || productPrice || 0;
       const quantity = item.quantity || 1;
       const totalPrice = unitPrice * quantity;
 
       return {
-        product: product._id,
+        product: productId,
         quantity,
         unitPrice,
         totalPrice,
@@ -77,8 +118,30 @@ export const createOrder = async (req, res) => {
     const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
     const total = subtotal + tax - discount;
 
+    // Generate unique order number - ensure it's always set
+    let orderNumber;
+    try {
+      const orderCount = await orderModel.countDocuments();
+      const timestamp = Date.now().toString().slice(-6);
+      orderNumber = `ORD-${timestamp}-${String(orderCount + 1).padStart(4, "0")}`;
+    } catch (countError) {
+      console.error("Error counting orders:", countError);
+      // Fallback order number generation
+      const timestamp = Date.now().toString().slice(-6);
+      const random = Math.floor(Math.random() * 10000);
+      orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
+    }
+    
+    // Ensure orderNumber is set
+    if (!orderNumber) {
+      const timestamp = Date.now().toString().slice(-6);
+      const random = Math.floor(Math.random() * 10000);
+      orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
+    }
+
     // Create order
     const order = await orderModel.create({
+      orderNumber,
       user: selectedProducts.user._id || selectedProducts.user,
       dealer: dealerId,
       project: selectedProducts.project._id || selectedProducts.project,
