@@ -28,7 +28,7 @@ const router = express.Router();
 router.post("/register", uploadMiddleware, register);
 
 // Email Verification
-router.post("/email/verification", verificationUser);
+router.post("/email-verification", verificationUser);
 
 // Login
 router.post("/login", loginUser);
