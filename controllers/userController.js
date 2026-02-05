@@ -159,7 +159,7 @@ export const verificationUser = async (req, res) => {
     const newUser = await jwt.verify(activation_token, process.env.JWT_SECRET);
 
     if (newUser.activationCode !== activation_code) {
-      return res.status({
+      return res.status(400).send({
         success: false,
         message: "Invalid activation code!",
       });
