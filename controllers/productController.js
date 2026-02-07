@@ -89,6 +89,11 @@ export const createProduct = async (req, res) => {
       validationErrors.push("Valid product price is required (must be greater than 0)");
     }
 
+    // Validate QR code is provided
+    if (!qr_code || qr_code.trim().length === 0) {
+      validationErrors.push("Please generate or scan a QR code");
+    }
+
     // Product images are now optional - can be added later
     // if (!req.files || req.files.length === 0) {
     //   validationErrors.push("At least one product image is required");
@@ -216,9 +221,16 @@ export const createProduct = async (req, res) => {
     // Handle duplicate key errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
+      let message = `A product with this ${field} already exists.`;
+      
+      // Special handling for QR code duplicates
+      if (field === 'qr_code') {
+        message = "This QR code is already assigned to another product. Please generate a new QR code.";
+      }
+      
       return res.status(409).json({
         success: false,
-        message: `A product with this ${field} already exists.`,
+        message: message,
       });
     }
     
@@ -575,9 +587,16 @@ export const updateProduct = async (req, res) => {
     // Handle duplicate key errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
+      let message = `A product with this ${field} already exists.`;
+      
+      // Special handling for QR code duplicates
+      if (field === 'qr_code') {
+        message = "This QR code is already assigned to another product. Please generate a new QR code.";
+      }
+      
       return res.status(409).json({
         success: false,
-        message: `A product with this ${field} already exists.`,
+        message: message,
       });
     }
     
