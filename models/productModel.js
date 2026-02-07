@@ -75,9 +75,9 @@ const productSchema = new mongoose.Schema(
     ],
     qr_code: { 
       type: String, 
-      required: [true, "QR code is required. Please generate or scan a QR code."],
       unique: true,
-      trim: true 
+      trim: true,
+      sparse: true  // Allow multiple null values for unique index
     },
     qr_code_image: { type: String },
     reviews: [

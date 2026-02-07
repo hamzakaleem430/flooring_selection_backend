@@ -89,11 +89,7 @@ export const createProduct = async (req, res) => {
       validationErrors.push("Valid product price is required (must be greater than 0)");
     }
 
-    // Validate QR code is provided
-    if (!qr_code || qr_code.trim().length === 0) {
-      validationErrors.push("Please generate or scan a QR code");
-    }
-
+    // QR code is now auto-generated if not provided
     // Product images are now optional - can be added later
     // if (!req.files || req.files.length === 0) {
     //   validationErrors.push("At least one product image is required");
@@ -105,6 +101,29 @@ export const createProduct = async (req, res) => {
         message: validationErrors.join(". "),
         errors: validationErrors,
       });
+    }
+
+    // Auto-generate QR code if not provided
+    let finalQRCode = qr_code;
+    let finalQRCodeImage = qr_code_image;
+    
+    if (!finalQRCode || finalQRCode.trim().length === 0) {
+      // Generate unique QR code using UUID
+      finalQRCode = uuidv4();
+      
+      // Generate QR code image and upload to S3
+      try {
+        const qrCodeBuffer = await QRCode.toBuffer(finalQRCode, {
+          errorCorrectionLevel: "H",
+          type: "png",
+          width: 300,
+        });
+        finalQRCodeImage = await uploadQRCodeToS3(qrCodeBuffer, finalQRCode);
+        console.log(`Auto-generated QR code for product "${name}": ${finalQRCode}`);
+      } catch (qrError) {
+        console.error("Error generating QR code:", qrError);
+        // Continue without QR code image if generation fails
+      }
     }
 
     // Separate main product images from variation images
@@ -196,8 +215,8 @@ export const createProduct = async (req, res) => {
       sellingPrice: sellingPrice,
       variations,
       images: mainProductImages,
-      qr_code: qr_code,
-      qr_code_image: qr_code_image,
+      qr_code: finalQRCode,
+      qr_code_image: finalQRCodeImage,
     });
 
     return res.status(200).json({
