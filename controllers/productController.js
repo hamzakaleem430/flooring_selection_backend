@@ -89,9 +89,10 @@ export const createProduct = async (req, res) => {
       validationErrors.push("Valid product price is required (must be greater than 0)");
     }
 
-    if (!req.files || req.files.length === 0) {
-      validationErrors.push("At least one product image is required");
-    }
+    // Product images are now optional - can be added later
+    // if (!req.files || req.files.length === 0) {
+    //   validationErrors.push("At least one product image is required");
+    // }
     
     if (validationErrors.length > 0) {
       return res.status(400).json({
@@ -102,7 +103,7 @@ export const createProduct = async (req, res) => {
     }
 
     // Separate main product images from variation images
-    const allFiles = req.files;
+    const allFiles = req.files || [];
     let mainProductImages = [];
     let variationImagesByIndex = [];
 
@@ -116,43 +117,46 @@ export const createProduct = async (req, res) => {
       }
     }
 
-    // If we have variation images count, split files accordingly
-    // variationImagesCountArray is a 2D array: [[2,3,1], [1,2]] means:
-    // - First variation: 3 options with 2, 3, and 1 images respectively
-    // - Second variation: 2 options with 1 and 2 images respectively
-    if (variationImagesCountArray.length > 0) {
-      let fileIndex = 0;
-      
-      // Calculate total variation images to determine where main images end
-      let totalVariationImages = 0;
-      variationImagesCountArray.forEach(variationCounts => {
-        variationCounts.forEach(count => {
-          totalVariationImages += count;
+    // Only process images if files are uploaded
+    if (allFiles.length > 0) {
+      // If we have variation images count, split files accordingly
+      // variationImagesCountArray is a 2D array: [[2,3,1], [1,2]] means:
+      // - First variation: 3 options with 2, 3, and 1 images respectively
+      // - Second variation: 2 options with 1 and 2 images respectively
+      if (variationImagesCountArray.length > 0) {
+        let fileIndex = 0;
+        
+        // Calculate total variation images to determine where main images end
+        let totalVariationImages = 0;
+        variationImagesCountArray.forEach(variationCounts => {
+          variationCounts.forEach(count => {
+            totalVariationImages += count;
+          });
         });
-      });
 
-      // Main product images come first
-      const mainImageCount = allFiles.length - totalVariationImages;
-      mainProductImages = allFiles.slice(0, mainImageCount).map(f => f.location);
-      fileIndex = mainImageCount;
+        // Main product images come first
+        const mainImageCount = allFiles.length - totalVariationImages;
+        mainProductImages = allFiles.slice(0, mainImageCount).map(f => f.location);
+        fileIndex = mainImageCount;
 
-      // Then get variation images organized by variation and option
-      for (let vIndex = 0; vIndex < variationImagesCountArray.length; vIndex++) {
-        const optionCounts = variationImagesCountArray[vIndex];
-        const variationImages = [];
-        
-        for (let oIndex = 0; oIndex < optionCounts.length; oIndex++) {
-          const imageCount = optionCounts[oIndex];
-          const optionImages = allFiles.slice(fileIndex, fileIndex + imageCount).map(f => f.location);
-          variationImages.push(optionImages);
-          fileIndex += imageCount;
+        // Then get variation images organized by variation and option
+        for (let vIndex = 0; vIndex < variationImagesCountArray.length; vIndex++) {
+          const optionCounts = variationImagesCountArray[vIndex];
+          const variationImages = [];
+          
+          for (let oIndex = 0; oIndex < optionCounts.length; oIndex++) {
+            const imageCount = optionCounts[oIndex];
+            const optionImages = allFiles.slice(fileIndex, fileIndex + imageCount).map(f => f.location);
+            variationImages.push(optionImages);
+            fileIndex += imageCount;
+          }
+          
+          variationImagesByIndex.push(variationImages);
         }
-        
-        variationImagesByIndex.push(variationImages);
+      } else {
+        // Fallback: all files are main product images
+        mainProductImages = allFiles.map((file) => file.location);
       }
-    } else {
-      // Fallback: all files are main product images
-      mainProductImages = allFiles.map((file) => file.location);
     }
 
     // Add images to variations
