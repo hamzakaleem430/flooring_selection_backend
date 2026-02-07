@@ -28,14 +28,14 @@ const calculateSellingPrice = (cost, marginValue, profitType = "markup") => {
 // Upload QR Code Image to S3
 const uploadQRCodeToS3 = async (qrCodeBuffer, key) => {
   try {
+    const AWS_REGION = process.env.AWS_REGION || "us-east-2";
+    
     const uploadParams = {
       Bucket: process.env.AWS_S3_BUCKET_NAME,
       Key: `qrcodes/${key}.png`,
       Body: qrCodeBuffer,
       ContentType: "image/png",
     };
-
-    const AWS_REGION = "eu-north-1";
 
     // Return S3 URL in the required format
     const uploader = new Upload({
@@ -45,10 +45,17 @@ const uploadQRCodeToS3 = async (qrCodeBuffer, key) => {
 
     await uploader.done();
 
-    return `https://s3.${AWS_REGION}.amazonaws.com/${process.env.AWS_S3_BUCKET_NAME}/qrcodes/${key}.png`;
+    const s3Url = `https://s3.${AWS_REGION}.amazonaws.com/${process.env.AWS_S3_BUCKET_NAME}/qrcodes/${key}.png`;
+    console.log("QR Code uploaded to S3:", s3Url);
+    return s3Url;
   } catch (error) {
     console.error("Error uploading QR Code to S3:", error);
-    throw new Error("Failed to upload QR code.");
+    console.error("Error details:", {
+      message: error.message,
+      code: error.code,
+      statusCode: error.$metadata?.httpStatusCode
+    });
+    throw new Error(`Failed to upload QR code: ${error.message}`);
   }
 };
 
@@ -107,22 +114,32 @@ export const createProduct = async (req, res) => {
     let finalQRCode = qr_code;
     let finalQRCodeImage = qr_code_image;
     
-    if (!finalQRCode || finalQRCode.trim().length === 0) {
+    if (!finalQRCode || (typeof finalQRCode === 'string' && finalQRCode.trim().length === 0)) {
       // Generate unique QR code using UUID
       finalQRCode = uuidv4();
       
-      // Generate QR code image and upload to S3
+      // Generate QR code image as data URL (base64) - same as frontend
       try {
-        const qrCodeBuffer = await QRCode.toBuffer(finalQRCode, {
+        // Generate as data URL instead of uploading to S3
+        // This matches how the frontend generates QR codes
+        finalQRCodeImage = await QRCode.toDataURL(finalQRCode, {
           errorCorrectionLevel: "H",
-          type: "png",
+          type: "image/png",
           width: 300,
+          margin: 2,
         });
-        finalQRCodeImage = await uploadQRCodeToS3(qrCodeBuffer, finalQRCode);
-        console.log(`Auto-generated QR code for product "${name}": ${finalQRCode}`);
+        console.log(`✓ Auto-generated QR code for product "${name}":`, {
+          qrCode: finalQRCode,
+          qrImageLength: finalQRCodeImage?.length || 0
+        });
       } catch (qrError) {
-        console.error("Error generating QR code:", qrError);
-        // Continue without QR code image if generation fails
+        console.error("✗ Error generating QR code:", qrError);
+        console.error("QR Error details:", {
+          message: qrError.message,
+          stack: qrError.stack
+        });
+        // If generation fails, still use the QR code but without image
+        // The QR code text will still be stored and can be regenerated later
       }
     }
 
