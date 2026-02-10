@@ -11,6 +11,7 @@ import {
 } from "../helper/encryption.js";
 import { s3 } from "../middleware/uploadFiles.js";
 import notificationModel from "../models/notificationModel.js";
+import { createNotificationWithSocket } from "../helper/notificationHelper.js";
 
 // Register
 export const register = async (req, res) => {
@@ -815,16 +816,14 @@ export const addReview = async (req, res) => {
 
     await user.save();
 
-    const notifications = {
-      user: userId,
+    // Create notification with real-time socket
+    await createNotificationWithSocket({
+      userId: userId,
       subject: "📢 New User Review Alert!",
       context: `${req.user.name} has just submitted a new user profile review. 🚀 Check it out now!`,
       type: "user",
       redirectLink: "/profile",
-    };
-
-    // // Create notifications for all admins
-    await notificationModel.create(notifications);
+    });
 
     return res.status(200).send({
       success: true,

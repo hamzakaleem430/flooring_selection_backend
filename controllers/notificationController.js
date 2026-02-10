@@ -1,6 +1,7 @@
 import sendMail from "../helper/mail.js";
 import notificationModel from "../models/notificationModel.js";
 import userModel from "../models/userModel.js";
+import { createNotificationWithSocket } from "../helper/notificationHelper.js";
 
 // Create Notification
 export const createNotification = async (req, res) => {
@@ -25,12 +26,13 @@ export const createNotification = async (req, res) => {
 
     const notifications = [];
 
-    // Create notifications and send emails for each user
+    // Create notifications with real-time socket and send emails for each user
     for (const user of users) {
-      const notification = await notificationModel.create({
-        user: user._id,
+      const notification = await createNotificationWithSocket({
+        userId: user._id,
         subject,
         context,
+        type: "admin",
       });
 
       notifications.push(notification);

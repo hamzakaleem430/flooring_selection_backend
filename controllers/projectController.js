@@ -7,7 +7,7 @@ import mongoose from "mongoose";
 import notificationModel from "../models/notificationModel.js";
 import chatModel from "../models/chat/chatModel.js";
 import { createProjectLog } from "./projectLogController.js";
-import { sendProjectStatusNotification } from "../helper/notificationHelper.js";
+import { sendProjectStatusNotification, createNotificationWithSocket } from "../helper/notificationHelper.js";
 dotenv.config();
 
 // Create Project
@@ -543,9 +543,9 @@ export const acceptFollowRequest = async (req, res) => {
       await chat.save();
     }
 
-    // Create a notification
-    await notificationModel.create({
-      user: user._id,
+    // Create a notification with real-time socket
+    await createNotificationWithSocket({
+      userId: user._id,
       subject: "Follow Request Accepted",
       context: `Your follow request for the project "${project.name}" has been accepted.`,
       type: "follow_request",
