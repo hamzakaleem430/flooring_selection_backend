@@ -10,6 +10,7 @@ export const createOrder = async (req, res) => {
       selectedProductsId,
       tax = 0,
       discount = 0,
+      freight = 0,
       billingAddress,
       shippingAddress,
       paymentTerms,
@@ -116,7 +117,7 @@ export const createOrder = async (req, res) => {
 
     // Calculate totals
     const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
-    const total = subtotal + tax - discount;
+    const total = subtotal + tax - discount + freight;
 
     // Generate unique order number - ensure it's always set
     let orderNumber;
@@ -150,6 +151,7 @@ export const createOrder = async (req, res) => {
       subtotal,
       tax,
       discount,
+      freight,
       total,
       status: "pending",
       billingAddress: billingAddress || null,
