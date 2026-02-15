@@ -11,12 +11,14 @@ import {
   generateInvoice,
   updateOrder,
   deleteOrder,
+  confirmOrder,
+  cancelOrder,
 } from "../controllers/orderController.js";
 
 const router = express.Router();
 
 // Create order from selected products
-router.post("/create", isAuthenticated, createOrder);
+router.post("/", isAuthenticated, createOrder);
 
 // Get single order
 router.get("/:id", isAuthenticated, getOrder);
@@ -30,10 +32,17 @@ router.get("/dealer/:dealerId", isAuthenticated, getDealerOrders);
 // Update order status
 router.put("/:id/status", isAuthenticated, updateOrderStatus);
 
-// Add user signature
-router.put("/:id/user-signature", isAuthenticated, addUserSignature);
+// Add signature (unified endpoint for both user and dealer)
+router.put("/:id/signature", isAuthenticated, addUserSignature);
 
-// Add dealer signature
+// Confirm order (dealer action)
+router.put("/:id/confirm", isAuthenticated, confirmOrder);
+
+// Cancel order
+router.put("/:id/cancel", isAuthenticated, cancelOrder);
+
+// Legacy endpoints (keep for backward compatibility)
+router.put("/:id/user-signature", isAuthenticated, addUserSignature);
 router.put("/:id/dealer-signature", isAuthenticated, addDealerSignature);
 
 // Generate invoice

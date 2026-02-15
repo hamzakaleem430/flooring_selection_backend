@@ -107,6 +107,7 @@ const orderSchema = new mongoose.Schema(
       enum: [
         "pending",
         "confirmed",
+        "in_progress",
         "awaiting_signature",
         "signed",
         "invoiced",
@@ -115,12 +116,40 @@ const orderSchema = new mongoose.Schema(
       ],
       default: "pending",
     },
+    customerName: {
+      type: String,
+      default: "",
+    },
+    customerEmail: {
+      type: String,
+      default: "",
+    },
+    customerPhone: {
+      type: String,
+      default: "",
+    },
+    deliveryAddress: {
+      type: String,
+      default: "",
+    },
+    signature: {
+      type: String, // Base64 image string - unified signature field
+      default: null,
+    },
+    signedBy: {
+      type: String,
+      default: null,
+    },
+    signedAt: {
+      type: String,
+      default: null,
+    },
     userSignature: {
-      type: String, // Base64 image string
+      type: String, // Base64 image string - legacy field
       default: null,
     },
     dealerSignature: {
-      type: String, // Base64 image string
+      type: String, // Base64 image string - legacy field
       default: null,
     },
     signatureDate: {

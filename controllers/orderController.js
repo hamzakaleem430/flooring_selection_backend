@@ -89,15 +89,20 @@ export const createOrder = async (req, res) => {
       // Handle both populated product objects and ObjectIds
       let productId;
       let productPrice = 0;
+      let productName = "";
+      let productImage = "";
+      let sku = "";
       
       if (typeof product === 'object' && product._id) {
         // Populated product object
         productId = product._id;
         productPrice = product.price || product.sellingPrice || 0;
+        productName = product.name || "";
+        productImage = product.images && product.images.length > 0 ? product.images[0] : "";
+        sku = product.sku || "";
       } else {
         // ObjectId (string or ObjectId instance)
         productId = product.toString();
-        // If not populated, we can't get the price, so use suggestedPrice or 0
         productPrice = 0;
       }
       
@@ -107,11 +112,16 @@ export const createOrder = async (req, res) => {
 
       return {
         product: productId,
+        productName,
+        productImage,
         quantity,
         unitPrice,
         totalPrice,
+        total: totalPrice,
         selectedVariations: item.selectedVariations || {},
         label: item.label || "",
+        sku,
+        notes: "",
       };
     });
 
@@ -155,6 +165,10 @@ export const createOrder = async (req, res) => {
       freight,
       total,
       status: "pending",
+      customerName: selectedProducts.user.name || "",
+      customerEmail: selectedProducts.user.email || "",
+      customerPhone: selectedProducts.user.phoneNumber || "",
+      deliveryAddress: shippingAddress?.street || billingAddress?.street || "",
       billingAddress: billingAddress || null,
       shippingAddress: shippingAddress || null,
       paymentTerms: paymentTerms || "",
@@ -380,11 +394,11 @@ export const updateOrderStatus = async (req, res) => {
   }
 };
 
-// Add User Signature
+// Add User Signature (Unified signature endpoint)
 export const addUserSignature = async (req, res) => {
   try {
     const { id } = req.params;
-    const { signature } = req.body;
+    const { signature, signedBy } = req.body;
 
     if (!signature) {
       return res.status(400).json({
@@ -402,15 +416,17 @@ export const addUserSignature = async (req, res) => {
       });
     }
 
+    // Set unified signature fields
+    order.signature = signature;
+    order.signedBy = signedBy || "Customer";
+    order.signedAt = new Date().toISOString();
+    
+    // Also set userSignature for backward compatibility
     order.userSignature = signature;
 
-    // Update status if both signatures exist
-    if (order.userSignature && order.dealerSignature) {
-      order.status = "signed";
-      order.signatureDate = new Date();
-    } else {
-      order.status = "awaiting_signature";
-    }
+    // Update status
+    order.status = "awaiting_signature";
+    order.signatureDate = new Date();
 
     await order.save();
 
@@ -420,17 +436,30 @@ export const addUserSignature = async (req, res) => {
       { path: "project", select: "name" },
       { path: "items.product" },
     ]);
+    
+    // Send notification to dealer
+    try {
+      await createNotificationWithSocket({
+        userId: order.dealer._id.toString(),
+        subject: "Order Signed by Customer",
+        context: `Order (${order.orderNumber}) has been signed by the customer.`,
+        type: "order",
+        redirectLink: `/orders/${order._id}`,
+      });
+    } catch (notifError) {
+      console.error("Error sending notification:", notifError);
+    }
 
     res.status(200).json({
       success: true,
-      message: "User signature added successfully",
+      message: "Signature added successfully",
       order,
     });
   } catch (error) {
-    console.error("Error adding user signature:", error);
+    console.error("Error adding signature:", error);
     res.status(500).json({
       success: false,
-      message: "Error adding user signature",
+      message: "Error adding signature",
       error: error.message,
     });
   }
@@ -597,6 +626,130 @@ export const updateOrder = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error updating order",
+      error: error.message,
+    });
+  }
+};
+
+// Confirm Order (Dealer Action)
+export const confirmOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await orderModel.findById(id);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // Check if order is in pending status
+    if (order.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        message: "Only pending orders can be confirmed",
+      });
+    }
+
+    order.status = "confirmed";
+    await order.save();
+
+    await order.populate([
+      { path: "user", select: "name email profileImage" },
+      { path: "dealer", select: "name email profileImage" },
+      { path: "project", select: "name" },
+      { path: "items.product" },
+    ]);
+
+    // Send notification to user
+    try {
+      await createNotificationWithSocket({
+        userId: order.user._id.toString(),
+        subject: "Order Confirmed",
+        context: `Your order (${order.orderNumber}) has been confirmed by the dealer.`,
+        type: "order",
+        redirectLink: `/orders/${order._id}`,
+      });
+    } catch (notifError) {
+      console.error("Error sending notification:", notifError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Order confirmed successfully",
+      order,
+    });
+  } catch (error) {
+    console.error("Error confirming order:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error confirming order",
+      error: error.message,
+    });
+  }
+};
+
+// Cancel Order
+export const cancelOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await orderModel.findById(id);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // Check if order can be cancelled (not completed or already cancelled)
+    if (["completed", "cancelled", "invoiced"].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot cancel order with status: ${order.status}`,
+      });
+    }
+
+    order.status = "cancelled";
+    await order.save();
+
+    await order.populate([
+      { path: "user", select: "name email profileImage" },
+      { path: "dealer", select: "name email profileImage" },
+      { path: "project", select: "name" },
+      { path: "items.product" },
+    ]);
+
+    // Send notification
+    try {
+      const recipientId = req.user._id.toString() === order.user._id.toString() 
+        ? order.dealer._id.toString() 
+        : order.user._id.toString();
+      
+      await createNotificationWithSocket({
+        userId: recipientId,
+        subject: "Order Cancelled",
+        context: `Order (${order.orderNumber}) has been cancelled.`,
+        type: "order",
+        redirectLink: `/orders/${order._id}`,
+      });
+    } catch (notifError) {
+      console.error("Error sending notification:", notifError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Order cancelled successfully",
+      order,
+    });
+  } catch (error) {
+    console.error("Error cancelling order:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error cancelling order",
       error: error.message,
     });
   }
