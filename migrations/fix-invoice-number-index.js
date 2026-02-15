@@ -9,7 +9,13 @@ dotenv.config();
 const fixInvoiceNumberIndex = async () => {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGO_URL || process.env.MONGODB_URI);
+    const mongoUri = process.env.MONGO_URI || process.env.MONGO_URL || process.env.MONGODB_URI;
+    
+    if (!mongoUri) {
+      throw new Error('MongoDB connection string not found. Please set MONGO_URI in your .env file');
+    }
+    
+    await mongoose.connect(mongoUri);
     console.log('Connected to MongoDB');
 
     const db = mongoose.connection.db;

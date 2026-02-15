@@ -19,7 +19,7 @@ fi
 # Get MongoDB connection string from .env
 if [ -f .env ]; then
     source .env
-    MONGO_CONN="${MONGO_URL:-$MONGODB_URI}"
+    MONGO_CONN="${MONGO_URI:-${MONGO_URL:-$MONGODB_URI}}"
 else
     echo "❌ .env file not found"
     echo "Please run this script from the backend directory:"
@@ -28,7 +28,7 @@ else
 fi
 
 if [ -z "$MONGO_CONN" ]; then
-    echo "❌ MONGO_URL or MONGODB_URI not found in .env"
+    echo "❌ MONGO_URI, MONGO_URL, or MONGODB_URI not found in .env"
     exit 1
 fi
 
