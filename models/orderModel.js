@@ -145,7 +145,7 @@ const orderSchema = new mongoose.Schema(
     },
     invoiceNumber: {
       type: String,
-      default: null,
+      default: undefined, // Use undefined instead of null to work better with sparse indexes
       unique: true,
       sparse: true,
     },

@@ -140,8 +140,9 @@ export const createOrder = async (req, res) => {
       orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
     }
 
-    // Create order
-    const order = await orderModel.create({
+    // Create order - Don't explicitly set invoiceNumber to avoid duplicate key error
+    // Let the schema's default value handle it (which is null by default)
+    const orderData = {
       orderNumber,
       user: selectedProducts.user._id || selectedProducts.user,
       dealer: dealerId,
@@ -158,7 +159,11 @@ export const createOrder = async (req, res) => {
       shippingAddress: shippingAddress || null,
       paymentTerms: paymentTerms || "",
       notes: notes || "",
-    });
+    };
+    
+    // Create order using save() instead of create() to better handle the sparse index
+    const order = new orderModel(orderData);
+    await order.save();
 
     // Populate order data
     await order.populate([
