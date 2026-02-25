@@ -133,6 +133,32 @@ export const sendChatNotification = async ({
 };
 
 /**
+ * Send notification to the customer when a dealer adds a product to potential options
+ * @param {Object} params - Notification parameters
+ * @param {String} params.customerId - Customer (project owner) user ID
+ * @param {String} params.productName - Name of the added product
+ * @param {String} params.projectName - Name of the project
+ * @param {String} params.projectId - Project ID
+ * @param {String} params.dealerName - Name of the dealer who added the product
+ */
+export const sendProductSuggestedNotification = async ({
+  customerId,
+  productName,
+  projectName,
+  projectId,
+  dealerName,
+}) => {
+  return await createNotificationWithSocket({
+    userId: customerId,
+    subject: `New Product Added to Your Project`,
+    context: `${dealerName} added "${productName}" to your potential options for "${projectName}".`,
+    type: "product",
+    redirectLink: `/projects/${projectId}/products`,
+    projectName,
+  });
+};
+
+/**
  * Send project status change notification
  * @param {Object} params - Project notification parameters
  * @param {Array<String>} params.recipientIds - Array of recipient user IDs

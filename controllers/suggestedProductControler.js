@@ -1,6 +1,8 @@
 import suggestedProductModal from "../models/suggestedProductModal.js";
 import productModel from "../models/productModel.js";
+import projectModel from "../models/projectModel.js";
 import { createProjectLog } from "./projectLogController.js";
+import { sendProductSuggestedNotification } from "../helper/notificationHelper.js";
 
 // Create a new suggested product
 export const createSuggestedProduct = async (req, res) => {
@@ -33,6 +35,18 @@ export const createSuggestedProduct = async (req, res) => {
       });
     }
 
+    // Fetch project once to get customer ID and name
+    const projectData = await projectModel
+      .findById(project)
+      .populate("user", "name");
+    const customerId = projectData?.user?._id?.toString();
+    const projectName = projectData?.name || "your project";
+    const dealerName = req.user?.name || "Your dealer";
+
+    // Only notify when a dealer (non-owner) adds a product
+    const isDealerAdding =
+      customerId && customerId !== user.toString();
+
     const suggestedProducts = [];
 
     for (const productId of product) {
@@ -61,6 +75,19 @@ export const createSuggestedProduct = async (req, res) => {
           `Product "${productData?.name || 'Unknown'}" suggested`,
           { productId, productName: productData?.name, quantity: quantity || 1, selectedVariations }
         );
+
+        // Notify the customer when a dealer adds a product to potential options
+        if (isDealerAdding) {
+          sendProductSuggestedNotification({
+            customerId,
+            productName: productData?.name || "a product",
+            projectName,
+            projectId: project,
+            dealerName,
+          }).catch((err) =>
+            console.error("Failed to send product suggestion notification:", err.message)
+          );
+        }
       } else {
         // Update quantity and variations if product already exists
         existingProduct.quantity = (existingProduct.quantity || 1) + (quantity || 1);
