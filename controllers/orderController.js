@@ -190,12 +190,14 @@ export const createOrder = async (req, res) => {
     // Send notification to user
     try {
       const userId = selectedProducts.user._id || selectedProducts.user;
+      const projectName = order.project?.name || "";
       await createNotificationWithSocket({
         userId: userId.toString(),
         subject: "New Order Created",
         context: `A new order (${order.orderNumber}) has been created for your project. Please review and sign.`,
         type: "order",
         redirectLink: `/orders/${order._id}`,
+        projectName,
       });
     } catch (notifError) {
       console.error("Error sending notification:", notifError);
@@ -424,8 +426,8 @@ export const addUserSignature = async (req, res) => {
     // Also set userSignature for backward compatibility
     order.userSignature = signature;
 
-    // Update status
-    order.status = "awaiting_signature";
+    // Customer signature completes the signing step — no dealer signature required
+    order.status = "signed";
     order.signatureDate = new Date();
 
     await order.save();
@@ -439,12 +441,14 @@ export const addUserSignature = async (req, res) => {
     
     // Send notification to dealer
     try {
+      const projectName = order.project?.name || "";
       await createNotificationWithSocket({
         userId: order.dealer._id.toString(),
         subject: "Order Signed by Customer",
         context: `Order (${order.orderNumber}) has been signed by the customer.`,
         type: "order",
         redirectLink: `/orders/${order._id}`,
+        projectName,
       });
     } catch (notifError) {
       console.error("Error sending notification:", notifError);
@@ -535,11 +539,11 @@ export const generateInvoice = async (req, res) => {
       });
     }
 
-    // Check if both signatures exist
-    if (!order.userSignature || !order.dealerSignature) {
+    // Check if customer signature exists
+    if (!order.signature && !order.userSignature) {
       return res.status(400).json({
         success: false,
-        message: "Both signatures are required to generate invoice",
+        message: "Customer signature is required to generate invoice",
       });
     }
 
@@ -665,12 +669,14 @@ export const confirmOrder = async (req, res) => {
 
     // Send notification to user
     try {
+      const projectName = order.project?.name || "";
       await createNotificationWithSocket({
         userId: order.user._id.toString(),
         subject: "Order Confirmed",
         context: `Your order (${order.orderNumber}) has been confirmed by the dealer.`,
         type: "order",
         redirectLink: `/orders/${order._id}`,
+        projectName,
       });
     } catch (notifError) {
       console.error("Error sending notification:", notifError);
@@ -728,6 +734,7 @@ export const cancelOrder = async (req, res) => {
       const recipientId = req.user._id.toString() === order.user._id.toString() 
         ? order.dealer._id.toString() 
         : order.user._id.toString();
+      const projectName = order.project?.name || "";
       
       await createNotificationWithSocket({
         userId: recipientId,
@@ -735,6 +742,7 @@ export const cancelOrder = async (req, res) => {
         context: `Order (${order.orderNumber}) has been cancelled.`,
         type: "order",
         redirectLink: `/orders/${order._id}`,
+        projectName,
       });
     } catch (notifError) {
       console.error("Error sending notification:", notifError);

@@ -24,6 +24,9 @@ const notificationSchema = new mongoose.Schema(
     redirectLink: {
       type: String,
     },
+    projectName: {
+      type: String,
+    },
   },
   { timestamps: true }
 );

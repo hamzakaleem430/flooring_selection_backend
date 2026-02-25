@@ -9,6 +9,7 @@ import { getIO } from "../socketServer.js";
  * @param {String} params.context - Notification content/message
  * @param {String} params.type - Notification type (e.g., 'project', 'chat', 'review')
  * @param {String} params.redirectLink - Optional redirect link
+ * @param {String} params.projectName - Optional project name (shown on order notifications)
  * @returns {Promise<Object>} Created notification
  */
 export const createNotificationWithSocket = async ({
@@ -17,6 +18,7 @@ export const createNotificationWithSocket = async ({
   context,
   type,
   redirectLink,
+  projectName,
 }) => {
   try {
     // Create notification in database
@@ -26,6 +28,7 @@ export const createNotificationWithSocket = async ({
       context,
       type,
       redirectLink,
+      projectName,
       status: "unread",
     });
 
@@ -60,6 +63,7 @@ export const createNotificationWithSocket = async ({
  * @param {String} params.context - Notification content/message
  * @param {String} params.type - Notification type
  * @param {String} params.redirectLink - Optional redirect link
+ * @param {String} params.projectName - Optional project name
  * @returns {Promise<Array>} Array of created notifications
  */
 export const createBulkNotifications = async ({
@@ -68,6 +72,7 @@ export const createBulkNotifications = async ({
   context,
   type,
   redirectLink,
+  projectName,
 }) => {
   try {
     // Ensure userIds is an array
@@ -85,6 +90,7 @@ export const createBulkNotifications = async ({
         context,
         type,
         redirectLink,
+        projectName,
       });
       notifications.push(notification);
     }
@@ -156,6 +162,7 @@ export const sendProjectStatusNotification = async ({
     context: statusMessages[status] || `Project "${projectName}" status changed to ${status}`,
     type: "project",
     redirectLink: `/projects/${projectId}`,
+    projectName,
   });
 };
 
