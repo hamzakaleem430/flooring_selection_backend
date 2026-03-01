@@ -18,6 +18,18 @@ const orderItemSchema = new mongoose.Schema(
       ref: "Product",
       required: true,
     },
+    productName: {
+      type: String,
+      default: "",
+    },
+    productImage: {
+      type: String,
+      default: "",
+    },
+    sku: {
+      type: String,
+      default: "",
+    },
     quantity: {
       type: Number,
       required: true,
@@ -32,6 +44,10 @@ const orderItemSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 0,
+    },
+    total: {
+      type: Number,
+      default: 0,
     },
     selectedVariations: {
       type: Map,

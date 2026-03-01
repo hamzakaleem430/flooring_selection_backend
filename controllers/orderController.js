@@ -3,6 +3,28 @@ import orderModel from "../models/orderModel.js";
 import selectedProductsModel from "../models/selectedProductsModel.js";
 import { createNotificationWithSocket } from "../helper/notificationHelper.js";
 
+/**
+ * Get the effective unit price for a product, considering variation-specific prices.
+ * Priority: suggestedPrice > variation price > sellingPrice > base price
+ */
+function getEffectiveProductPrice(product, suggestedPrice, selectedVariations) {
+  if (suggestedPrice != null && suggestedPrice > 0) {
+    return suggestedPrice;
+  }
+  if (selectedVariations && product.variations && product.variations.length > 0) {
+    for (const variation of product.variations) {
+      const selectedValue = selectedVariations[variation.type];
+      if (selectedValue && variation.prices && variation.prices.length > 0) {
+        const optIdx = variation.options?.indexOf(selectedValue);
+        if (optIdx !== -1 && variation.prices[optIdx] != null && variation.prices[optIdx] > 0) {
+          return variation.prices[optIdx];
+        }
+      }
+    }
+  }
+  return product.sellingPrice ?? product.price ?? 0;
+}
+
 // Create Order from Selected Products
 export const createOrder = async (req, res) => {
   try {
@@ -88,25 +110,24 @@ export const createOrder = async (req, res) => {
       const product = item.product;
       // Handle both populated product objects and ObjectIds
       let productId;
-      let productPrice = 0;
       let productName = "";
       let productImage = "";
       let sku = "";
       
       if (typeof product === 'object' && product._id) {
-        // Populated product object
+        // Populated product object - use variation-aware pricing
         productId = product._id;
-        productPrice = product.price || product.sellingPrice || 0;
         productName = product.name || "";
         productImage = product.images && product.images.length > 0 ? product.images[0] : "";
         sku = product.sku || "";
       } else {
         // ObjectId (string or ObjectId instance)
         productId = product.toString();
-        productPrice = 0;
       }
       
-      const unitPrice = item.suggestedPrice || productPrice || 0;
+      const unitPrice = typeof product === 'object' && product._id
+        ? getEffectiveProductPrice(product, item.suggestedPrice, item.selectedVariations)
+        : (item.suggestedPrice || 0);
       const quantity = item.quantity || 1;
       const totalPrice = unitPrice * quantity;
 
