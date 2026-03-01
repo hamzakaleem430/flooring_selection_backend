@@ -1,6 +1,77 @@
 import selectedProductsModel from "../models/selectedProductsModel.js";
 import productModel from "../models/productModel.js";
+import projectModel from "../models/projectModel.js";
+import chatModel from "../models/chat/chatModel.js";
 import { createProjectLog } from "./projectLogController.js";
+import { sendProjectStatusNotification } from "../helper/notificationHelper.js";
+
+/**
+ * Connect product dealers to a project. Called when a customer adds products
+ * (e.g. via scan) to a project - the dealers who own those products are
+ * automatically added to the project's connect_users.
+ */
+async function connectProductDealersToProject(projectId, productIds, customerName) {
+  if (!projectId || !productIds?.length) return;
+
+  const productDocs = await productModel
+    .find({ _id: { $in: productIds } })
+    .select("user")
+    .lean();
+
+  const dealerIds = [...new Set(
+    productDocs
+      .map((p) => p.user)
+      .filter((id) => id != null)
+      .map((id) => id.toString())
+  )];
+
+  if (dealerIds.length === 0) return;
+
+  const project = await projectModel.findById(projectId);
+  if (!project) return;
+
+  const connectedSet = new Set(
+    project.connect_users.map((id) => id.toString())
+  );
+
+  const toAdd = dealerIds.filter((id) => !connectedSet.has(id));
+  if (toAdd.length === 0) return;
+
+  for (const dealerIdStr of toAdd) {
+    project.connect_users.push(dealerIdStr);
+    connectedSet.add(dealerIdStr);
+  }
+  await project.save();
+
+  const chat = await chatModel.findOne({
+    projectId: projectId.toString(),
+    isGroupChat: true,
+  });
+  if (chat) {
+    const chatUserSet = new Set(chat.users.map((u) => u.toString()));
+    for (const dealerIdStr of toAdd) {
+      if (!chatUserSet.has(dealerIdStr)) {
+        chat.users.push(dealerIdStr);
+        chatUserSet.add(dealerIdStr);
+      }
+    }
+    await chat.save();
+  }
+
+  try {
+    const projectData = await projectModel.findById(projectId).populate("user", "name");
+    const customerDisplayName = projectData?.user?.name || customerName || "A customer";
+    await sendProjectStatusNotification({
+      recipientIds: toAdd,
+      projectName: project.name,
+      projectId: projectId.toString(),
+      status: "connected",
+      changedBy: customerDisplayName,
+    });
+  } catch (notifErr) {
+    console.error("Error sending dealer connection notification:", notifErr);
+  }
+}
 
 // Create Selected Products
 export const createSelectedProducts = async (req, res) => {
@@ -88,6 +159,13 @@ export const createSelectedProducts = async (req, res) => {
           );
         }
 
+        // Connect product dealers to the project
+        await connectProductDealersToProject(
+          project,
+          productsToAdd.map((p) => p.product),
+          req.user?.name
+        );
+
         return res.status(200).json({
           success: true,
           message: "Products added successfully",
@@ -114,6 +192,13 @@ export const createSelectedProducts = async (req, res) => {
         products: formattedProducts, 
         project 
       });
+
+      // Connect product dealers to the project
+      await connectProductDealersToProject(
+        project,
+        products,
+        req.user?.name
+      );
 
       return res.status(201).json({
         success: true,
